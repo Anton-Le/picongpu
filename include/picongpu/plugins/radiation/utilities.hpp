@@ -85,7 +85,7 @@ namespace details
     * @tparam T_Type - base type
     * @param x - base value
     * @param exp - exponent
-    * @param results (=1) - do not change - workaround to produce efficient code
+    * @param results (=1) - do not change - workaround to produce efficient code // is this still relevant?
     * @return std::pow(x, exp)
     */
   template< typename T_Type >

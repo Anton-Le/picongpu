@@ -34,27 +34,32 @@ namespace radiation
 
 /** class to store 3 complex numbers for the radiated amplitude
  */
+template <typename base_dtype = picongpu::float_64 >
 class Amplitude
 {
 public:
-  using complex_64 = pmacc::math::Complex< picongpu::float_64 >;
-
+  //using complex_64 = pmacc::math::Complex< picongpu::float_64 >;
+  // For the intermediate amplitude values we may use single precision
+  // for the final accumulation we will have to use double precision
+  //using complex_32 = pmacc::math::Complex< picongpu::float_32 >;
+  using complex_T = pmacc::math::Complex< base_dtype >;
   /* number of scalar components in Amplitude = 3 (3D) * 2 (complex) = 6 */
-  static constexpr uint32_t numComponents = uint32_t(3) * uint32_t(sizeof(complex_64) / sizeof(typename complex_64::type));
+  // This definition appears stilted
+  static constexpr uint32_t numComponents = uint32_t(3) * uint32_t(sizeof(complex_T) / sizeof(typename complex_T::type));
 
   /** constructor
    *
    * Arguments:
    * - vector_64: real 3D vector
    * - float: complex phase */
-  DINLINE Amplitude(vector_64 vec, picongpu::float_X phase)
+  DINLINE Amplitude(vector_32 vec, picongpu::float_X phase) // Needs change!
   {
       picongpu::float_X cosValue;
       picongpu::float_X sinValue;
       pmacc::math::sincos(phase, sinValue, cosValue);
-      amp_x=pmacc::math::euler(vec.x(), precisionCast<picongpu::float_64>(sinValue), precisionCast<picongpu::float_64>(cosValue) );
-      amp_y=pmacc::math::euler(vec.y(), precisionCast<picongpu::float_64>(sinValue), precisionCast<picongpu::float_64>(cosValue) );
-      amp_z=pmacc::math::euler(vec.z(), precisionCast<picongpu::float_64>(sinValue), precisionCast<picongpu::float_64>(cosValue) );
+      amp_x=pmacc::math::euler(vec.x(), precisionCast<base_dtype>(sinValue), precisionCast< base_dtype >(cosValue) );
+      amp_y=pmacc::math::euler(vec.y(), precisionCast<base_dtype>(sinValue), precisionCast<base_dtype>(cosValue) );
+      amp_z=pmacc::math::euler(vec.z(), precisionCast<base_dtype>(sinValue), precisionCast<base_dtype>(cosValue) );
   }
 
 
@@ -71,9 +76,9 @@ public:
    *
    * Arguments:
    * - 6x float: Re(x), Im(x), Re(y), Im(y), Re(z), Im(z) */
-  HDINLINE Amplitude(const picongpu::float_64 x_re, const picongpu::float_64 x_im,
-                     const picongpu::float_64 y_re, const picongpu::float_64 y_im,
-                     const picongpu::float_64 z_re, const picongpu::float_64 z_im)
+  HDINLINE Amplitude(const base_dtype x_re, const base_dtype x_im,
+                     const base_dtype y_re, const base_dtype y_im,
+                     const base_dtype z_re, const base_dtype z_im)
       : amp_x(x_re, x_im), amp_y(y_re, y_im), amp_z(z_re, z_im)
   {
 
@@ -86,9 +91,9 @@ public:
   HDINLINE static Amplitude zero(void)
   {
       Amplitude result;
-      result.amp_x = complex_64::zero();
-      result.amp_y = complex_64::zero();
-      result.amp_z = complex_64::zero();
+      result.amp_x = complex_T::zero();
+      result.amp_y = complex_T::zero();
+      result.amp_z = complex_T::zero();
       return result;
   }
 
@@ -115,11 +120,11 @@ public:
   /** calculate radiation from *this amplitude
    *
    * Returns: \f$\frac{d^2 I}{d \Omega d \omega} = const*Amplitude^2\f$ */
-  HDINLINE picongpu::float_64 calc_radiation(void)
+  HDINLINE base_dtype calc_radiation(void)
   {
       // const SI factor radiation
-      const picongpu::float_64 factor = 1.0 /
-        (16. * util::cube(pmacc::math::Pi< picongpu::float_64 >::value) * picongpu::EPS0 * picongpu::SPEED_OF_LIGHT);
+      const base_dtype factor = 1.0 /
+        (16. * util::cube(pmacc::math::Pi< base_dtype >::value) * picongpu::EPS0 * picongpu::SPEED_OF_LIGHT);
 
       return factor * (pmacc::math::abs2(amp_x) + pmacc::math::abs2(amp_y) + pmacc::math::abs2(amp_z));
   }
@@ -128,16 +133,16 @@ public:
   /** debugging method
    *
    * Returns: real-x-value */
-  HDINLINE picongpu::float_64 debug(void)
+  HDINLINE base_dtype debug(void)
   {
       return amp_x.get_real();
   }
 
 
 private:
-  complex_64 amp_x; // complex amplitude x-component
-  complex_64 amp_y; // complex amplitude y-component
-  complex_64 amp_z; // complex amplitude z-component
+  complex_32 amp_x; // complex amplitude x-component
+  complex_32 amp_y; // complex amplitude y-component
+  complex_32 amp_z; // complex amplitude z-component
 
 };
 } // namespace radiation
@@ -153,7 +158,7 @@ namespace mpi
   template<>
   HINLINE MPI_StructAsArray getMPI_StructAsArray< picongpu::plugins::radiation::Amplitude >()
   {
-      MPI_StructAsArray result = getMPI_StructAsArray< picongpu::plugins::radiation::Amplitude::complex_64::type > ();
+      MPI_StructAsArray result = getMPI_StructAsArray< picongpu::plugins::radiation::Amplitude::complex_T::type > ();
       result.sizeMultiplier *= picongpu::plugins::radiation::Amplitude::numComponents;
       return result;
   };

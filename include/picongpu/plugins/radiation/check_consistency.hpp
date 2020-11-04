@@ -32,6 +32,9 @@ namespace radiation
 
 HINLINE void check_consistency(void)
 {
+    /* What kind of consistency check is this supposed to be?
+     * is it relevant at all?
+     */
     using namespace parameters;
     std::cout << " checking efficiency of radiation code: " ;
     if(radiation_frequencies::N_omega%radiation_frequencies::blocksize_omega == 0)

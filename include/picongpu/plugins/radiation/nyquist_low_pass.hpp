@@ -40,7 +40,7 @@ public:
      * \f$omega_{Nyquist} = (\pi - \epsilon )/(\delta t * (1 - \vec(\beta) * \vec(n)))\f$
      * so that all Amplitudes for higher frequencies can be ignored
     **/
-    HDINLINE NyquistLowPass(const vector_64& n, const Particle& particle)
+    HDINLINE NyquistLowPass(const vector_32& n, const Particle& particle)
       : omegaNyquist((PI - 0.01)/
            (DELTA_T *
             One_minus_beta_times_n()(n, particle)))

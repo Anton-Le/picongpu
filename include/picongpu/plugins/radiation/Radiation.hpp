@@ -129,8 +129,8 @@ private:
      */
     Amplitude* timeSumArray;
     Amplitude *tmp_result;
-    vector_64* detectorPositions;
-    float_64* detectorFrequencies;
+    vector_32* detectorPositions;
+    float_32* detectorFrequencies;
 
     bool isMaster;
 
@@ -291,6 +291,7 @@ private:
                 numJobs = 1;
             }
             // allocate memory for all amplitudes for temporal data collection
+            // ACCUMULATOR! Should be in double precision
             tmp_result = new Amplitude[elements_amplitude()];
 
             /*only rank 0 create a file*/
@@ -315,14 +316,14 @@ private:
                     timeSumArray[i] = Amplitude::zero();
 
                 /* save detector position / observation direction */
-                detectorPositions = new vector_64[parameters::N_observer];
+                detectorPositions = new vector_32[parameters::N_observer];
                 for(uint32_t detectorIndex=0; detectorIndex < parameters::N_observer; ++detectorIndex)
                 {
                     detectorPositions[detectorIndex] = radiation_observer::observation_direction(detectorIndex);
                 }
 
                 /* save detector frequencies */
-                detectorFrequencies = new float_64[radiation_frequencies::N_omega];
+                detectorFrequencies = new float_32[radiation_frequencies::N_omega];
                 for(uint32_t detectorIndex=0; detectorIndex < radiation_frequencies::N_omega; ++detectorIndex)
                 {
                     detectorFrequencies[detectorIndex] = freqFkt.get(detectorIndex);
@@ -395,6 +396,7 @@ private:
 
 
   /** Method to copy data from GPU to CPU */
+  // ENSURE THE USE OF DOUBLE PRECISION!
   void copyRadiationDeviceToHost()
   {
     radiation->deviceToHost();
@@ -673,7 +675,7 @@ private:
 
       hdf5DataFile.open(filename.str().c_str(), fAttr);
 
-      typename PICToSplash<float_64>::type radSplashType;
+      typename PICToSplash<float_32>::type radSplashType;
 
 
       splash::Dimensions bufferSize(Amplitude::numComponents,
@@ -688,7 +690,7 @@ private:
 
       /* get the radiation amplitude unit */
       Amplitude UnityAmplitude(1., 0., 0., 0., 0., 0.);
-      const picongpu::float_64 factor = UnityAmplitude.calc_radiation() * UNIT_ENERGY * UNIT_TIME ;
+      const picongpu::float_32 factor = UnityAmplitude.calc_radiation() * UNIT_ENERGY * UNIT_TIME ;
 
       typedef PICToSplash<float_X>::type SplashFloatXType;
       SplashFloatXType splashFloatXType;
@@ -761,7 +763,7 @@ private:
                              detectorPositions);
 
           /* save SI unit as attribute together with data set */
-          const picongpu::float_64 factorDirection = 1.0  ;
+          const picongpu::float_32 factorDirection = 1.0  ;
           hdf5DataFile.writeAttribute(currentStep,
                                       radSplashType,
                                       (meshesPathName + dataLabelsDetectorDirection(detectorDim)).c_str(),
@@ -803,7 +805,7 @@ private:
                          detectorFrequencies);
 
       /* save SI unit as attribute together with data set */
-      const picongpu::float_64 factorOmega = 1.0 / UNIT_TIME ;
+      const picongpu::float_32 factorOmega = 1.0 / UNIT_TIME ;
       hdf5DataFile.writeAttribute(currentStep,
                                   radSplashType,
                                   (meshesPathName + dataLabelsDetectorFrequency(0)).c_str(),
@@ -922,7 +924,7 @@ private:
                                       "timeOffset", &timeOffset);
 
           /* gridGlobalOffset */
-          std::vector<float_64> gridGlobalOffset(simDim, 0.0); /* there is no offset - zero */
+          std::vector<float_32> gridGlobalOffset(simDim, 0.0); /* there is no offset - zero */
           hdf5DataFile.writeAttribute(currentStep,
                                       ctDouble,
                                       (meshesPathName + meshRecordLabels(i)).c_str(),
@@ -1004,7 +1006,7 @@ private:
 
 
           /* unitDimension */
-          std::vector<float_64> unitDimension( traits::NUnitDimension, 0.0 );
+          std::vector<float_32> unitDimension( traits::NUnitDimension, 0.0 );
           if( i == idLabels::Amplitude ) /* amplitude record */
           {
               /* units Joule seconds -> Length^2 * Time^-1 * Mass^1 */
@@ -1069,14 +1071,14 @@ private:
       {
           hdf5DataFile.open(filename.str().c_str(), fAttr);
 
-          typename PICToSplash<float_64>::type radSplashType;
+          typename PICToSplash<float_32>::type radSplashType;
 
           splash::Dimensions componentSize(1,
                                            radiation_frequencies::N_omega,
                                            parameters::N_observer);
 
           const int N_tmpBuffer = radiation_frequencies::N_omega * parameters::N_observer;
-          picongpu::float_64* tmpBuffer = new picongpu::float_64[N_tmpBuffer];
+          picongpu::float_32* tmpBuffer = new picongpu::float_32[N_tmpBuffer];
 
           for(uint32_t ampIndex=0; ampIndex < Amplitude::numComponents; ++ampIndex)
           {
@@ -1087,8 +1089,8 @@ private:
 
               for(int copyIndex = 0; copyIndex < N_tmpBuffer; ++copyIndex)
               {
-                  /* convert data directly because Amplitude is just 6 float_64 */
-                  ((picongpu::float_64*)values)[ampIndex + Amplitude::numComponents*copyIndex] = tmpBuffer[copyIndex];
+                  /* convert data directly because Amplitude is just 6 float_32 */
+                  ((picongpu::float_32*)values)[ampIndex + Amplitude::numComponents*copyIndex] = tmpBuffer[copyIndex];
               }
 
           }
