@@ -434,7 +434,7 @@ namespace radiation
                          * it  is initialized with zeros (  0 +  i 0 )
                          */
 			// ACCUMULATOR! Ensure double precision
-                        Amplitude amplitude = Amplitude::zero();
+                        Amplitude<> amplitude = Amplitude<>::zero();
 
                         // compute frequency "omega" using for-loop-index "o"
                         picongpu::float_32 const omega = freqFkt( o );
@@ -470,14 +470,14 @@ namespace radiation
                                     );
 
                                 // complex amplitude for j-th particle
-				// LOCAL can be single precision
+                                // LOCAL can be single precision
                                 Amplitude<picongpu::float_32> amplitude_add(
                                     weighted_real_amp,
                                     t_ret_s[ j ] * omega
                                 );
 
                                 // add this single amplitude those previously considered
-                                amplitude += amplitude_add;
+                                amplitude += precisionCast<picongpu::float_64>(amplitude_add);
 
                             }// END: check Nyquist-limit for each particle "j" and each frequency "omega"
 
