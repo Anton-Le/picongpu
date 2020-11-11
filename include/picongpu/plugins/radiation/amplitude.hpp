@@ -50,7 +50,7 @@ public:
    * Arguments:
    * - vector_64: real 3D vector
    * - float: complex phase */
-  DINLINE Amplitude(vector_32 vec, picongpu::float_X phase) // Needs change!
+  DINLINE Amplitude(vector_64 vec, picongpu::float_X phase) // Needs change!
   {
       picongpu::float_X cosValue;
       picongpu::float_X sinValue;
@@ -202,7 +202,7 @@ namespace precisionCast
                         picongpu::plugins::radiation::Amplitude<CastToType>
                         >
                         {
-                                using result = const picongpu::plugins::radiation::Amplitude<CastToType>&;
+                                using result = const picongpu::plugins::radiation::Amplitude<CastToType>;
 
                                 HDINLINE result operator( )( result amplitude ) const
                                 {
@@ -220,11 +220,13 @@ namespace precisionCast
                                 using result = picongpu::plugins::radiation::Amplitude<CastToType>;
                                 using ParamType = picongpu::plugins::radiation::Amplitude<OldType>;
                                 HDINLINE result operator( )(const ParamType& amplitude ) const
-                                {       
+                                {
+
                                         result Result( 
-                                                    precisionCast<result::complex_T::type >(amplitude.getXcomponent()),
+                                                    precisionCast< result::complex_T::type>(amplitude.getXcomponent()),
                                                     precisionCast< result::complex_T::type>(amplitude.getYcomponent()),
-                                                    precisionCast< result::complex_T::type>(amplitude.getYcomponent()) );
+                                                    precisionCast< result::complex_T::type>(amplitude.getZcomponent()) );
+                                        return Result;
                                 }
                         };
 

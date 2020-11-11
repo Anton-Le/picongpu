@@ -90,19 +90,19 @@ public:
     // first --> is specialized below
 
     template<unsigned int when>
-    HDINLINE picongpu::float_32 get_gamma(void) const
+    HDINLINE picongpu::float_64 get_gamma(void) const
     {
         return calc_gamma(get_momentum<when > ());
     } // get gamma at time when
 
     template<unsigned int when>
-    HDINLINE picongpu::float_32 get_gamma_inv_square(void) const
+    HDINLINE picongpu::float_64 get_gamma_inv_square(void) const
     {
         return calc_gamma_inv_square(get_momentum<when > ());
     } // get 1/gamma^2
 
     template< unsigned int when>
-    HDINLINE picongpu::float_32 get_cos_theta(const vector_32& n) const
+    HDINLINE picongpu::float_64 get_cos_theta(const vector_32& n) const
     {
         // get cos(theta) at time when
         const vector_32 beta = get_beta<when > ();
@@ -117,26 +117,26 @@ private:
     HDINLINE vector_32 calc_beta(const vector_X& momentum) const
     {
         // returns beta=v/c
-        const picongpu::float_32 gamma1 = calc_gamma(momentum);
+        const picongpu::float_64 gamma1 = calc_gamma(momentum);
         return momentum * (1.0 / (mass * picongpu::SPEED_OF_LIGHT * gamma1));
     }
 
-    HDINLINE picongpu::float_32 calc_gamma(const vector_X& momentum) const
+    HDINLINE picongpu::float_64 calc_gamma(const vector_X& momentum) const
     {
         // return gamma = E/(mc^2)
-        const picongpu::float_32 x = util::square<vector_X, picongpu::float_32 > (momentum * (1.0 / (mass * picongpu::SPEED_OF_LIGHT)));
+        const picongpu::float_64 x = util::square<vector_X, picongpu::float_64 > (momentum * (1.0 / (mass * picongpu::SPEED_OF_LIGHT)));
         return picongpu::math::sqrt(1.0 + x);
 
     }
 
-    HDINLINE picongpu::float_32 calc_gamma_inv_square(const vector_X& momentum) const
+    HDINLINE picongpu::float_64 calc_gamma_inv_square(const vector_X& momentum) const
     {
         // returns 1/gamma^2 = m^2*c^2/(m^2*c^2 + p^2)
-        const picongpu::float_32 Emass = mass * picongpu::SPEED_OF_LIGHT;
-        return Emass / (Emass + (util::square<vector_X, picongpu::float_32 > (momentum)) / Emass);
+        const picongpu::float_64 Emass = mass * picongpu::SPEED_OF_LIGHT;
+        return Emass / (Emass + (util::square<vector_X, picongpu::float_64 > (momentum)) / Emass);
     }
 
-    HDINLINE picongpu::float_32 calc_cos_theta(const vector_32& n, const vector_32& beta) const
+    HDINLINE picongpu::float_64 calc_cos_theta(const vector_32& n, const vector_32& beta) const
     {
         // return cos of angle between looking and flight direction
         return (n * beta) / (std::sqrt(beta * beta));
@@ -145,10 +145,10 @@ private:
 
     // setters:
 
-    HDINLINE picongpu::float_32 summand(void) const
+    HDINLINE picongpu::float_64 summand(void) const
     {
         // return \vec n independend summand (next value to add to \vec n independend sum)
-        const picongpu::float_32 x = get_gamma_inv_square<When::now > ();
+        const picongpu::float_64 x = get_gamma_inv_square<When::now > ();
         return Taylor()(x);
     }
 

@@ -145,7 +145,7 @@ namespace radiation
             constexpr int blockSize = pmacc::math::CT::volume<SuperCellSize>::type::value;
 
             // vectorial part of the integrand in the Jackson formula
-            PMACC_SMEM( acc, real_amplitude_s, memory::Array< vector_32, blockSize > );
+            PMACC_SMEM( acc, real_amplitude_s, memory::Array< vector_64, blockSize > );
 
             // retarded time
             PMACC_SMEM( acc, t_ret_s, memory::Array< picongpu::float_32, blockSize > );
@@ -433,8 +433,8 @@ namespace radiation
                         /* storage for amplitude (complex 3D vector)
                          * it  is initialized with zeros (  0 +  i 0 )
                          */
-			// ACCUMULATOR! Ensure double precision
-                        Amplitude<> amplitude = Amplitude<>::zero();
+            			// ACCUMULATOR! Ensure double precision
+                        Amplitude<picongpu::float_64> amplitude = Amplitude<picongpu::float_64>::zero();
 
                         // compute frequency "omega" using for-loop-index "o"
                         picongpu::float_32 const omega = freqFkt( o );
@@ -460,24 +460,23 @@ namespace radiation
                                  ****************************************************/
 
                                 // calulate the form factor's' influences to the real amplitude
-                                vector_32 const weighted_real_amp = real_amplitude_s[ j ] *
-                                    precisionCast< float_32 >(
+                                vector_64 const weighted_real_amp = real_amplitude_s[ j ] *
                                         myRadFormFactor(
                                             radWeighting_s[ j ],
                                             omega,
                                             look
-                                        )
-                                    );
+                                        );
 
                                 // complex amplitude for j-th particle
                                 // LOCAL can be single precision
-                                Amplitude<picongpu::float_32> amplitude_add(
+                                Amplitude<picongpu::float_64> amplitude_add(
                                     weighted_real_amp,
                                     t_ret_s[ j ] * omega
                                 );
 
                                 // add this single amplitude those previously considered
-                                amplitude += precisionCast<picongpu::float_64>(amplitude_add);
+                                //amplitude += precisionCast<picongpu::float_64>(amplitude_add);
+                                amplitude += amplitude_add;
 
                             }// END: check Nyquist-limit for each particle "j" and each frequency "omega"
 

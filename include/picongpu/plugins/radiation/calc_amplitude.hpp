@@ -53,11 +53,11 @@ struct One_minus_beta_times_n
 
     //  Taylor just includes a method, When includes just enum
 
-    HDINLINE picongpu::float_32 operator()(const vector_32& n, const Particle & particle) const
+    HDINLINE picongpu::float_64 operator()(const vector_32& n, const Particle & particle) const
     {
         // 1/gamma^2:
 
-        const picongpu::float_32 gamma_inv_square(particle.get_gamma_inv_square<When::now > ());
+        const picongpu::float_64 gamma_inv_square(particle.get_gamma_inv_square<When::now > ());
 
         //picongpu::float_32 value; // storage for 1-\beta \times \vec n
 
@@ -68,13 +68,13 @@ struct One_minus_beta_times_n
         // with 0.18 the relative error will be below 0.001% for a Taylor series of 1-sqrt(1-x) of 5th order
         if (gamma_inv_square < picongpu::GAMMA_INV_SQUARE_RAD_THRESH)
         {
-            const picongpu::float_32 cos_theta(particle.get_cos_theta<When::now > (n)); // cosine between looking vector and momentum of particle
-            const picongpu::float_32 taylor_approx(cos_theta * Taylor()(gamma_inv_square) + (1.0 - cos_theta));
+            const picongpu::float_64 cos_theta(particle.get_cos_theta<When::now > (n)); // cosine between looking vector and momentum of particle
+            const picongpu::float_64 taylor_approx(cos_theta * Taylor()(gamma_inv_square) + (1.0 - cos_theta));
             return  (taylor_approx);
         }
         else
         {
-            const vector_32 beta(particle.get_beta<When::now > ()); // calculate v/c=beta
+            const vector_64 beta(particle.get_beta<When::now > ()); // calculate v/c=beta
             return  (1.0 - beta * n);
         }
 
@@ -115,7 +115,7 @@ struct Old_Method
         const vector_32 beta_dot((beta - particle.get_beta < When::now + 1 > ()) / delta_t); // numeric differentiation (backward difference)
         const Exponent exponent; // instance of the Exponent class // ???is a static class and no instance possible???
          //const One_minus_beta_times_n one_minus_beta_times_n;
-        const picongpu::float_32 factor(exponent(1.0 / (One_minus_beta_times_n()(n, particle))));
+        const picongpu::float_64 factor(exponent(1.0 / (One_minus_beta_times_n()(n, particle))));
         // factor=1/(1-beta*n)^g   g=2 for DFT and g=3 for FFT
         return (n % ((n - beta) % beta_dot)) * factor;
     }
@@ -123,7 +123,7 @@ struct Old_Method
 
 // typedef of all possible forms of Old_Method
 //typedef Old_Method<util::Cube<picongpu::float_32> > Old_FFT;
-typedef Old_Method<util::Square<picongpu::float_32> > Old_DFT;
+typedef Old_Method<util::Square<picongpu::float_64> > Old_DFT;
 
 
 
