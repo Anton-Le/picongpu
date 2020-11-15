@@ -165,12 +165,12 @@ namespace radiation
             int const theta_idx = cupla::blockIdx(acc).x; //cupla::blockIdx(acc).x is used to determine theta
 
             // simulation time (needed for retarded time)
-            picongpu::float_64 const t(
-                picongpu::float_64( currentStep ) * picongpu::float_64( DELTA_T)
-            );
-
+            //picongpu::float_64 const t(
+            //    picongpu::float_64( currentStep ) * picongpu::float_64( DELTA_T)
+            //);
+            picongpu::float_32 const t(currentStep * DELTA_T);
             // looking direction (needed for observer) used in the thread
-            vector_64 const look = radiation_observer::observation_direction( theta_idx );
+            vector_32 const look = radiation_observer::observation_direction( theta_idx );
 
             // get extent of guarding super cells (needed to ignore them)
             DataSpace< simDim > const guardingSuperCells = mapper.getGuardingSuperCells();
@@ -468,13 +468,14 @@ namespace radiation
 
                                 // complex amplitude for j-th particle
                                 // LOCAL can be single precision
-                                Amplitude<picongpu::float_32> amplitude_add(
+                                Amplitude<> amplitude_add(
                                     weighted_real_amp,
                                     t_ret_s[ j ] * omega
                                 );
 
                                 // add this single amplitude those previously considered
-                                amplitude += precisionCast<picongpu::float_64>(amplitude_add);
+                                //amplitude += precisionCast<picongpu::float_64>(amplitude_add);
+                                amplitude += amplitude_add;
 
                             }// END: check Nyquist-limit for each particle "j" and each frequency "omega"
 
