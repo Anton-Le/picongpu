@@ -53,7 +53,7 @@ struct One_minus_beta_times_n
 
     //  Taylor just includes a method, When includes just enum
 
-    HDINLINE picongpu::float_32 operator()(const vector_64& n, const Particle & particle) const
+    HDINLINE picongpu::float_64 operator()(const vector_32& n, const Particle & particle) const
     {
         // 1/gamma^2:
 
@@ -92,7 +92,7 @@ struct Retarded_time_1
     {
         const vector_64 r(particle.get_location<When::now > ()); // location
         //return (picongpu::float_64) (t - (n * r) / (picongpu::SPEED_OF_LIGHT));
-        return (picongpu::float_64) (t - r.dot(n) / (picongpu::SPEED_OF_LIGHT));
+        return (picongpu::float_64) (t - (r.dot(n)) / (picongpu::SPEED_OF_LIGHT));
 
     }
 
