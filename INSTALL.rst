@@ -330,6 +330,13 @@ openPMD API
 """""""""""
 - 0.12.0+ (bare minimum) / 0.13.0+ (for streaming IO)
 - *Spack*: ``spack install openpmd-api``
+- For usage in PIConGPU, the openPMD API must have been built either with support for ADIOS2 or HDF5 (or both).
+  When building the openPMD API from source (described below), these dependencies must be built and installed first.
+
+  - For ADIOS2, CMake build instructions can be found in the `official documentation <https://adios2.readthedocs.io/en/latest/setting_up/setting_up.html>`_.
+    The default configuration should generally be sufficient, the ``CMAKE_INSTALL_PREFIX`` should be set to a fitting location.
+  - For HDF5, CMake build  instructions can be found in the `official documentation <https://support.hdfgroup.org/HDF5/release/cmakebuild.html>`_.
+    The parameters ``-DHDF5_BUILD_CPP_LIB=OFF -DHDF5_ENABLE_PARALLEL=ON`` are required, the ``CMAKE_INSTALL_PREFIX`` should be set to a fitting location.
 - *from source:*
 
   - ``mkdir -p ~/src ~/lib``
@@ -338,11 +345,18 @@ openPMD API
   - ``cd openPMD-api``
   - ``mkdir build && cd build``
   - ``cmake .. -DopenPMD_USE_MPI=ON -DCMAKE_INSTALL_PREFIX=~/lib/openPMD-api``
+    Optionally, specify the parameters ``-DopenPMD_USE_ADIOS2=ON -DopenPMD_USE_HDF5=ON``. Otherwise, these parameters are set to ``ON`` automatically if CMake detects the dependencies on your system.
   - ``make -j $(nproc) install``
 - environment:* (assumes install from source in ``$HOME/lib/openPMD-api``)
 
   - ``export CMAKE_PREFIX_PATH="$HOME/lib/openPMD-api:$CMAKE_PREFIX_PATH"``
   - ``export LD_LIBRARY_PATH="$HOME/lib/openPMD-api/lib:$LD_LIBRARY_PATH"``
+- If PIConGPU is built with openPMD output enabled, the JSON library
+  nlohmann_json will automatically be used, found in the ``thirdParty/``
+  directory.
+  By setting the CMake parameter ``PIC_nlohmann_json_PROVIDER=extern``, CMake
+  can be instructed to search for an installation of nlohmann_json externally.
+  Refer to LICENSE.md for further information.
 
 ISAAC
 """""

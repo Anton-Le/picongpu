@@ -22,6 +22,7 @@
 #include "picongpu/simulation_defines.hpp"
 #include "picongpu/fields/MaxwellSolver/None/None.def"
 #include "picongpu/fields/cellType/Yee.hpp"
+#include "picongpu/traits/GetMargin.hpp"
 
 #include <pmacc/types.hpp>
 
@@ -44,8 +45,8 @@ namespace picongpu
                 {
                 };
 
-                template<typename T_CurrentInterpolation, typename T_Dummy>
-                struct ConditionCheck<None<T_CurrentInterpolation>, T_Dummy>
+                template<typename T_Dummy>
+                struct ConditionCheck<None, T_Dummy>
                 {
                     /* Courant-Friedrichs-Levy-Condition for Yee Field Solver:
                      *
@@ -59,15 +60,13 @@ namespace picongpu
                 };
             } // namespace none
 
-            template<typename T_CurrentInterpolation>
-            class None : private none::ConditionCheck<None<T_CurrentInterpolation>>
+            class None : private none::ConditionCheck<None>
             {
             private:
                 typedef MappingDesc::SuperCellSize SuperCellSize;
 
             public:
                 using CellType = cellType::Yee;
-                using CurrentInterpolation = T_CurrentInterpolation;
 
                 None(MappingDesc)
                 {
@@ -90,4 +89,19 @@ namespace picongpu
 
         } // namespace maxwellSolver
     } // namespace fields
+
+    namespace traits
+    {
+        /** Get margin for any field access in the None solver
+         *
+         * @tparam T_Field field type
+         */
+        template<typename T_Field>
+        struct GetMargin<picongpu::fields::maxwellSolver::None, T_Field>
+        {
+            using LowerMargin = typename pmacc::math::CT::make_Int<simDim, 0>::type;
+            using UpperMargin = LowerMargin;
+        };
+    } // namespace traits
+
 } // namespace picongpu

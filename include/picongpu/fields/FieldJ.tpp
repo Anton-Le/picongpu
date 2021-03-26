@@ -1,5 +1,5 @@
 /* Copyright 2013-2021 Axel Huebl, Heiko Burau, Rene Widera, Felix Schmitt,
- *                     Richard Pausch, Benjamin Worpitz
+ *                     Richard Pausch, Benjamin Worpitz, Sergei Bastrakov
  *
  * This file is part of PIConGPU.
  *
@@ -23,6 +23,7 @@
 #include "picongpu/simulation_defines.hpp"
 #include "picongpu/fields/FieldJ.hpp"
 #include "picongpu/fields/FieldJ.kernel"
+#include "picongpu/fields/currentInterpolation/CurrentInterpolation.hpp"
 #include "picongpu/fields/currentDeposition/Deposit.hpp"
 #include "picongpu/particles/traits/GetCurrentSolver.hpp"
 #include "picongpu/traits/GetMargin.hpp"
@@ -35,11 +36,13 @@
 #include <pmacc/math/Vector.hpp>
 #include <pmacc/fields/operations/CopyGuardToExchange.hpp>
 #include <pmacc/fields/operations/AddExchangeToBorder.hpp>
+#include <pmacc/traits/GetUniqueTypeId.hpp>
 #include <pmacc/traits/Resolve.hpp>
 #include <pmacc/traits/GetNumWorkers.hpp>
 
 #include <boost/mpl/accumulate.hpp>
 
+#include <cstdint>
 #include <iostream>
 #include <memory>
 
@@ -73,14 +76,11 @@ namespace picongpu
          * additional current interpolations and current filters on FieldJ might
          * spread the dependencies on neighboring cells
          *   -> use max(shape,filter) */
-        using LowerMargin = pmacc::math::CT::
-            max<LowerMarginShapes, GetMargin<typename fields::Solver::CurrentInterpolation>::LowerMargin>::type;
-
-        using UpperMargin = pmacc::math::CT::
-            max<UpperMarginShapes, GetMargin<typename fields::Solver::CurrentInterpolation>::UpperMargin>::type;
-
-        const DataSpace<simDim> originGuard(LowerMargin().toRT());
-        const DataSpace<simDim> endGuard(UpperMargin().toRT());
+        auto const& interpolation = fields::currentInterpolation::CurrentInterpolation::get();
+        auto const interpolationLowerMargin = interpolation.getLowerMargin();
+        auto const interpolationUpperMargin = interpolation.getUpperMargin();
+        auto const originGuard = pmacc::math::max(LowerMarginShapes::toRT(), interpolationLowerMargin);
+        auto const endGuard = pmacc::math::max(UpperMarginShapes::toRT(), interpolationUpperMargin);
 
         /*go over all directions*/
         for(uint32_t i = 1; i < NumberOfExchanges<simDim>::value; ++i)
@@ -109,17 +109,16 @@ namespace picongpu
                     break;
                 };
             }
-            // std::cout << "ex " << i << " x=" << guardingCells[0] << " y=" << guardingCells[1] << " z=" <<
-            // guardingCells[2] << std::endl;
-            buffer.addExchangeBuffer(i, guardingCells, FIELD_J);
+            // Type to generate a unique send tag from
+            struct SendTag;
+            auto const sendCommTag = pmacc::traits::GetUniqueTypeId<SendTag, uint32_t>::uid();
+            buffer.addExchangeBuffer(i, guardingCells, sendCommTag);
         }
 
         /* Receive border values in own guard for "receive" communication pattern - necessary for current
          * interpolation/filter */
-        const DataSpace<simDim> originRecvGuard(
-            GetMargin<typename fields::Solver::CurrentInterpolation>::LowerMargin().toRT());
-        const DataSpace<simDim> endRecvGuard(
-            GetMargin<typename fields::Solver::CurrentInterpolation>::UpperMargin().toRT());
+        const DataSpace<simDim> originRecvGuard = interpolationLowerMargin;
+        const DataSpace<simDim> endRecvGuard = interpolationUpperMargin;
         if(originRecvGuard != DataSpace<simDim>::create(0) || endRecvGuard != DataSpace<simDim>::create(0))
         {
             fieldJrecv = std::make_unique<GridBuffer<ValueType, simDim>>(
@@ -137,7 +136,10 @@ namespace picongpu
                 DataSpace<simDim> guardingCells;
                 for(uint32_t d = 0; d < simDim; ++d)
                     guardingCells[d] = (relativMask[d] == -1 ? originRecvGuard[d] : endRecvGuard[d]);
-                fieldJrecv->addExchange(GUARD, i, guardingCells, FIELD_JRECV);
+                // Type to generate a unique receive tag from
+                struct RecvTag;
+                auto const recvCommTag = pmacc::traits::GetUniqueTypeId<RecvTag, uint32_t>::uid();
+                fieldJrecv->addExchange(GUARD, i, guardingCells, recvCommTag);
             }
         }
     }
@@ -222,16 +224,6 @@ namespace picongpu
     template<uint32_t T_area, class T_Species>
     void FieldJ::computeCurrent(T_Species& species, uint32_t)
     {
-#if BOOST_COMP_HIP && PIC_COMPUTE_CURRENT_THREAD_LIMITER
-        // HIP-clang creates wrong results if more threads than particles in a frame will be used
-        constexpr int workerMultiplier = 1;
-#else
-        /* tuning parameter to use more workers than cells in a supercell
-         * valid domain: 1 <= workerMultiplier
-         */
-        constexpr int workerMultiplier = 2;
-#endif
-
         using FrameType = typename T_Species::FrameType;
         typedef typename pmacc::traits::Resolve<typename GetFlagType<FrameType, current<>>::type>::type
             ParticleCurrentSolver;
@@ -245,10 +237,10 @@ namespace picongpu
             typename GetMargin<ParticleCurrentSolver>::UpperMargin>
             BlockArea;
 
-        constexpr uint32_t numWorkers = pmacc::traits::GetNumWorkers<
-            pmacc::math::CT::volume<SuperCellSize>::type::value * workerMultiplier>::value;
-
         using Strategy = currentSolver::traits::GetStrategy_t<FrameSolver>;
+
+        constexpr uint32_t numWorkers = pmacc::traits::GetNumWorkers<
+            pmacc::math::CT::volume<SuperCellSize>::type::value * Strategy::workerMultiplier>::value;
 
         auto const depositionKernel = currentSolver::KernelComputeCurrent<numWorkers, BlockArea>{};
 
@@ -260,8 +252,8 @@ namespace picongpu
         deposit.template execute<T_area, numWorkers>(cellDescription, depositionKernel, solver, jBox, pBox);
     }
 
-    template<uint32_t T_area, class T_CurrentInterpolation>
-    void FieldJ::addCurrentToEMF(T_CurrentInterpolation& myCurrentInterpolation)
+    template<uint32_t T_area, class T_CurrentInterpolationFunctor>
+    void FieldJ::addCurrentToEMF(T_CurrentInterpolationFunctor myCurrentInterpolationFunctor)
     {
         DataConnector& dc = Environment<>::get().DataConnector();
         auto fieldE = dc.get<FieldE>(FieldE::getName(), true);
@@ -277,7 +269,7 @@ namespace picongpu
             fieldE->getDeviceDataBox(),
             fieldB->getDeviceDataBox(),
             buffer.getDeviceBuffer().getDataBox(),
-            myCurrentInterpolation,
+            myCurrentInterpolationFunctor,
             mapper);
         dc.releaseData(FieldE::getName());
         dc.releaseData(FieldB::getName());

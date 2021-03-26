@@ -373,17 +373,15 @@ namespace picongpu
              * updates and communication. The numerical schemes to perform the updates
              * are implemented by yeePML::detail::Solver.
              *
-             * @tparam T_CurrentInterpolation current interpolation functor
              * @tparam T_CurlE functor to compute curl of E
              * @tparam T_CurlB functor to compute curl of B
              */
-            template<typename T_CurrentInterpolation, typename T_CurlE, typename T_CurlB>
+            template<typename T_CurlE, typename T_CurlB>
             class YeePML
             {
             public:
                 // Types required by field solver interface
                 using CellType = cellType::Yee;
-                using CurrentInterpolation = T_CurrentInterpolation;
                 using CurlE = T_CurlE;
                 using CurlB = T_CurlB;
 
@@ -463,6 +461,33 @@ namespace picongpu
 
         } // namespace maxwellSolver
     } // namespace fields
+
+    namespace traits
+    {
+        /** Get margin for B field access in the YeePML solver
+         *
+         * @tparam T_CurlE functor to compute curl of E
+         * @tparam T_CurlB functor to compute curl of B
+         */
+        template<typename T_CurlE, typename T_CurlB>
+        struct GetMargin<picongpu::fields::maxwellSolver::YeePML<T_CurlE, T_CurlB>, FieldB>
+            : public GetMargin<picongpu::fields::maxwellSolver::Yee<T_CurlE, T_CurlB>, FieldB>
+        {
+        };
+
+        /** Get margin for E field access in the YeePML solver
+         *
+         * @tparam T_CurlE functor to compute curl of E
+         * @tparam T_CurlB functor to compute curl of B
+         */
+        template<typename T_CurlE, typename T_CurlB>
+        struct GetMargin<picongpu::fields::maxwellSolver::YeePML<T_CurlE, T_CurlB>, FieldE>
+            : public GetMargin<picongpu::fields::maxwellSolver::Yee<T_CurlE, T_CurlB>, FieldE>
+        {
+        };
+
+    } // namespace traits
+
 } // namespace picongpu
 
 #include "picongpu/fields/MaxwellSolver/YeePML/Field.tpp"

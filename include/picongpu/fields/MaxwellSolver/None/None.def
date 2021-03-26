@@ -20,7 +20,6 @@
 #pragma once
 
 #include <pmacc/math/Vector.hpp>
-#include "picongpu/fields/currentInterpolation/CurrentInterpolation.def"
 
 
 namespace picongpu
@@ -29,27 +28,8 @@ namespace picongpu
     {
         namespace maxwellSolver
         {
-            template<typename T_CurrentInterpolation = currentInterpolation::None>
             class None;
 
         } // namespace maxwellSolver
     } // namespace fields
-
-    namespace traits
-    {
-        template<typename T_CurrentInterpolation>
-        struct GetMargin<picongpu::fields::maxwellSolver::None<T_CurrentInterpolation>, FIELD_B>
-        {
-            using LowerMargin = typename pmacc::math::CT::make_Int<simDim, 0>::type;
-            using UpperMargin = LowerMargin;
-        };
-
-        template<typename T_CurrentInterpolation>
-        struct GetMargin<picongpu::fields::maxwellSolver::None<T_CurrentInterpolation>, FIELD_E>
-        {
-            using LowerMargin = typename pmacc::math::CT::make_Int<simDim, 0>::type;
-            using UpperMargin = LowerMargin;
-        };
-
-    } // namespace traits
 } // namespace picongpu

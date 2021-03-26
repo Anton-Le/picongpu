@@ -51,12 +51,18 @@ namespace picongpu
          *
          * Implements interfaces defined by SimulationFieldHelper< MappingDesc > and
          * ISimulationData.
+         *
+         * @tparam T_DerivedField derived field type
          */
+        template<typename T_DerivedField>
         class EMFieldBase
             : public SimulationFieldHelper<MappingDesc>
             , public ISimulationData
         {
         public:
+            //! Derived field type
+            using DerivedField = T_DerivedField;
+
             //! Type of each field value
             using ValueType = float3_X;
 
@@ -74,17 +80,10 @@ namespace picongpu
 
             /** Create a field
              *
-             * @tparam T_tag communication tag value
-             *
              * @param cellDescription mapping for kernels
              * @param id unique id
-             * @param tag helper parameter for T_tag deduction
              */
-            template<CommunicationTag T_tag>
-            HINLINE EMFieldBase(
-                MappingDesc const& cellDescription,
-                pmacc::SimulationDataId const& id,
-                std::integral_constant<CommunicationTag, T_tag> tag);
+            HINLINE EMFieldBase(MappingDesc const& cellDescription, pmacc::SimulationDataId const& id);
 
             //! Get a reference to the host-device buffer for the field values
             HINLINE Buffer& getGridBuffer();

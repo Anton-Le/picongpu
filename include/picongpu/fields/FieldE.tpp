@@ -32,8 +32,7 @@
 
 namespace picongpu
 {
-    FieldE::FieldE(MappingDesc const& cellDescription)
-        : fields::EMFieldBase(cellDescription, getName(), std::integral_constant<CommunicationTag, FIELD_E>{})
+    FieldE::FieldE(MappingDesc const& cellDescription) : fields::EMFieldBase<FieldE>(cellDescription, getName())
     {
     }
 
