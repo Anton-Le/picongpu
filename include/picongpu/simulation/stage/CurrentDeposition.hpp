@@ -22,11 +22,12 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/fields/FieldJ.hpp"
 
-#include <pmacc/meta/ForEach.hpp>
-#include <pmacc/dataManagement/DataConnector.hpp>
 #include <pmacc/Environment.hpp>
+#include <pmacc/dataManagement/DataConnector.hpp>
+#include <pmacc/meta/ForEach.hpp>
 #include <pmacc/particles/traits/FilterByFlag.hpp>
 #include <pmacc/type/Area.hpp>
 
@@ -51,7 +52,6 @@ namespace picongpu
                     {
                         auto species = dc.get<SpeciesType>(FrameType::getName(), true);
                         fieldJ.computeCurrent<T_Area::value, SpeciesType>(*species, currentStep);
-                        dc.releaseData(FrameType::getName());
                     }
                 };
 
@@ -77,7 +77,6 @@ namespace picongpu
                         detail::CurrentDeposition<bmpl::_1, bmpl::int_<type::CORE + type::BORDER>>>
                         depositCurrent;
                     depositCurrent(step, fieldJ, dc);
-                    dc.releaseData(FieldJ::getName());
                 }
             };
 

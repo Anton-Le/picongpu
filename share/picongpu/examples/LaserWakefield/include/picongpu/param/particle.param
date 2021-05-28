@@ -20,10 +20,10 @@
 
 #pragma once
 
-#include "picongpu/particles/startPosition/functors.def"
 #include "picongpu/particles/manipulators/manipulators.def"
+#include "picongpu/particles/startPosition/functors.def"
 
-#include <pmacc/nvidia/functors/Assign.hpp>
+#include <pmacc/math/operation.hpp>
 
 
 namespace picongpu
@@ -65,7 +65,7 @@ namespace picongpu
                     using Particle = T_Particle;
 
                     // number of bound electrons at initialization state of the neutral atom
-                    float_X const protonNumber = traits::GetAtomicNumbers<T_Particle>::type::numberOfProtons;
+                    float_X const protonNumber = picongpu::traits::GetAtomicNumbers<T_Particle>::type::numberOfProtons;
 
                     particle[boundElectrons_] = protonNumber;
                 }

@@ -1,5 +1,5 @@
 /* Copyright 2013-2021 Axel Huebl, Heiko Burau, Rene Widera, Felix Schmitt,
- *                     Richard Pausch, Benjamin Worpitz
+ *                     Richard Pausch, Benjamin Worpitz, Pawel Ordyna
  *
  * This file is part of PIConGPU.
  *
@@ -21,28 +21,30 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/fields/FieldTmp.kernel"
 #include "picongpu/fields/MaxwellSolver/Solvers.hpp"
-#include "picongpu/traits/GetMargin.hpp"
 #include "picongpu/particles/traits/GetInterpolation.hpp"
+#include "picongpu/traits/GetMargin.hpp"
 
-#include <pmacc/memory/buffers/GridBuffer.hpp>
-#include <pmacc/mappings/simulation/GridController.hpp>
 #include <pmacc/dataManagement/DataConnector.hpp>
-#include <pmacc/mappings/kernel/AreaMapping.hpp>
-#include <pmacc/eventSystem/EventSystem.hpp>
-#include <pmacc/fields/tasks/FieldFactory.hpp>
 #include <pmacc/dimensions/SuperCellDescription.hpp>
-#include <pmacc/math/Vector.hpp>
-#include <pmacc/fields/operations/CopyGuardToExchange.hpp>
+#include <pmacc/eventSystem/EventSystem.hpp>
 #include <pmacc/fields/operations/AddExchangeToBorder.hpp>
+#include <pmacc/fields/operations/CopyGuardToExchange.hpp>
+#include <pmacc/fields/tasks/FieldFactory.hpp>
+#include <pmacc/mappings/kernel/AreaMapping.hpp>
+#include <pmacc/mappings/simulation/GridController.hpp>
+#include <pmacc/math/Vector.hpp>
+#include <pmacc/memory/buffers/GridBuffer.hpp>
 #include <pmacc/particles/traits/FilterByFlag.hpp>
-#include <pmacc/traits/GetUniqueTypeId.hpp>
 #include <pmacc/traits/GetNumWorkers.hpp>
+#include <pmacc/traits/GetUniqueTypeId.hpp>
 
 #include <boost/mpl/accumulate.hpp>
-#include <string>
+
 #include <memory>
+#include <string>
 
 
 namespace picongpu
@@ -91,9 +93,7 @@ namespace picongpu
 
         typedef pmacc::math::CT::max<SpeciesLowerMargin, FieldTmpLowerMargin>::type SpeciesFieldTmpLowerMargin;
 
-        typedef pmacc::math::CT::max<
-            GetMargin<fields::Solver, FieldB>::LowerMargin,
-            GetMargin<fields::Solver, FieldE>::LowerMargin>::type FieldSolverLowerMargin;
+        using FieldSolverLowerMargin = GetLowerMargin<fields::Solver>::type;
 
         typedef pmacc::math::CT::max<SpeciesFieldTmpLowerMargin, FieldSolverLowerMargin>::type LowerMargin;
 
@@ -112,9 +112,7 @@ namespace picongpu
 
         typedef pmacc::math::CT::max<SpeciesUpperMargin, FieldTmpUpperMargin>::type SpeciesFieldTmpUpperMargin;
 
-        typedef pmacc::math::CT::max<
-            GetMargin<fields::Solver, FieldB>::UpperMargin,
-            GetMargin<fields::Solver, FieldE>::UpperMargin>::type FieldSolverUpperMargin;
+        using FieldSolverUpperMargin = GetUpperMargin<fields::Solver>::type;
 
         typedef pmacc::math::CT::max<SpeciesFieldTmpUpperMargin, FieldSolverUpperMargin>::type UpperMargin;
 
@@ -164,7 +162,7 @@ namespace picongpu
         }
     }
 
-    template<uint32_t AREA, class FrameSolver, class ParticlesClass>
+    template<uint32_t AREA, class FrameSolver, typename Filter, class ParticlesClass>
     void FieldTmp::computeValue(ParticlesClass& parClass, uint32_t)
     {
         typedef SuperCellDescription<
@@ -177,13 +175,15 @@ namespace picongpu
         typename ParticlesClass::ParticlesBoxType pBox = parClass.getDeviceParticlesBox();
         FieldTmp::DataBoxType tmpBox = this->fieldTmp->getDeviceBuffer().getDataBox();
         FrameSolver solver;
+        using ParticleFilter = typename Filter ::template apply<ParticlesClass>::type;
+        ParticleFilter particleFilter;
         constexpr uint32_t numWorkers
             = pmacc::traits::GetNumWorkers<pmacc::math::CT::volume<SuperCellSize>::type::value>::value;
 
         do
         {
             PMACC_KERNEL(KernelComputeSupercells<numWorkers, BlockArea>{})
-            (mapper.getGridDim(), numWorkers)(tmpBox, pBox, solver, mapper);
+            (mapper.getGridDim(), numWorkers)(tmpBox, pBox, solver, particleFilter, mapper);
         } while(mapper.next());
     }
 

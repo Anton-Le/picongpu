@@ -20,14 +20,14 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
-#include "ScaledSpectrum.hpp"
+
 #include "PhotonEmissionAngle.hpp"
+#include "ScaledSpectrum.hpp"
 #include "picongpu/fields/FieldTmp.hpp"
 
-#include <pmacc/random/methods/methods.hpp>
-#include <pmacc/random/distributions/Uniform.hpp>
 #include <pmacc/random/RNGProvider.hpp>
-
+#include <pmacc/random/distributions/Uniform.hpp>
+#include <pmacc/random/methods/methods.hpp>
 #include <pmacc/traits/Resolve.hpp>
 
 
@@ -130,7 +130,7 @@ namespace picongpu
                  * @warning this is a collective method and calls synchronize
                  *
                  * @tparam T_Acc alpaka accelerator type
-                 * @tparam T_WorkerCfg pmacc::mappings::threads::WorkerCfg, configuration of the worker
+                 * @tparam T_WorkerCfg lockstep::Worker, configuration of the worker
                  *
                  * @param acc alpaka accelerator
                  * @param blockCell relative offset (in cells) to the local domain plus the guarding cells

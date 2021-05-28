@@ -22,16 +22,16 @@
 
 #pragma once
 
-#include "pmacc/eventSystem/tasks/ITask.hpp"
-#include "pmacc/eventSystem/tasks/MPITask.hpp"
-#include "pmacc/eventSystem/tasks/TaskCopyHostToDevice.hpp"
+#include "pmacc/Environment.hpp"
+#include "pmacc/eventSystem/EventSystem.hpp"
 #include "pmacc/eventSystem/events/EventDataReceive.hpp"
-#include "pmacc/eventSystem/tasks/Factory.hpp"
-#include "pmacc/mappings/simulation/EnvironmentController.hpp"
-#include "pmacc/memory/buffers/Exchange.hpp"
+#include "pmacc/eventSystem/tasks/MPITask.hpp"
 
 namespace pmacc
 {
+    template<class TYPE, unsigned DIM>
+    class Exchange;
+
     template<class TYPE, unsigned DIM>
     class TaskReceive : public MPITask
     {
@@ -43,6 +43,13 @@ namespace pmacc
         virtual void init()
         {
             state = WaitForReceived;
+            if(Environment<>::get().isMpiDirectEnabled())
+            {
+                /* Wait to be sure that all device work is finished before MPI is triggered.
+                 * MPI will not wait for work in our device streams
+                 */
+                __getTransactionEvent().waitForFinished();
+            }
             Environment<>::get().Factory().createTaskReceiveMPI(exchange, this);
         }
 

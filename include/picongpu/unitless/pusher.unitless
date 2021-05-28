@@ -21,22 +21,20 @@
 
 #include "picongpu/algorithms/Gamma.hpp"
 #include "picongpu/algorithms/Velocity.hpp"
-
 #include "picongpu/particles/pusher/particlePusherAcceleration.hpp"
 #include "picongpu/particles/pusher/particlePusherBoris.hpp"
 #include "picongpu/particles/pusher/particlePusherComposite.hpp"
-#include "picongpu/particles/pusher/particlePusherVay.hpp"
-#include "picongpu/particles/pusher/particlePusherHigueraCary.hpp"
 #include "picongpu/particles/pusher/particlePusherFree.hpp"
+#include "picongpu/particles/pusher/particlePusherHigueraCary.hpp"
 #include "picongpu/particles/pusher/particlePusherPhoton.hpp"
 #include "picongpu/particles/pusher/particlePusherProbe.hpp"
 #include "picongpu/particles/pusher/particlePusherReducedLandauLifshitz.hpp"
+#include "picongpu/particles/pusher/particlePusherVay.hpp"
 #if(SIMDIM == DIM3)
 #    include "picongpu/particles/pusher/particlePusherAxel.hpp"
 #endif
 
-#include <pmacc/nvidia/functors/Assign.hpp>
-#include <pmacc/nvidia/functors/Add.hpp>
+#include <pmacc/math/operation.hpp>
 
 
 namespace picongpu
@@ -81,7 +79,7 @@ namespace picongpu
             };
 
             struct Probe
-                : public particlePusherProbe::Push<pmacc::nvidia::functors::Assign, particlePusherProbe::ActualPusher>
+                : public particlePusherProbe::Push<pmacc::math::operation::Assign, particlePusherProbe::ActualPusher>
             {
             };
 

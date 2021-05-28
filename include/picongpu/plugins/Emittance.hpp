@@ -22,42 +22,41 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/algorithms/KinEnergy.hpp"
-#include "picongpu/plugins/common/txtFileHandling.hpp"
-#include "picongpu/plugins/multi/multi.hpp"
-#include "picongpu/particles/traits/SpeciesEligibleForSolver.hpp"
 #include "picongpu/particles/traits/GenerateSolversIfSpeciesEligible.hpp"
+#include "picongpu/particles/traits/SpeciesEligibleForSolver.hpp"
+#include "picongpu/plugins/common/txtFileHandling.hpp"
 #include "picongpu/plugins/misc/misc.hpp"
+#include "picongpu/plugins/multi/multi.hpp"
 #include "picongpu/simulation/control/MovingWindow.hpp"
 
-#include <pmacc/mappings/kernel/AreaMapping.hpp>
+#include <pmacc/cuSTL/algorithm/functor/Add.hpp>
 #include <pmacc/cuSTL/algorithm/mpi/Gather.hpp>
 #include <pmacc/cuSTL/algorithm/mpi/Reduce.hpp>
-#include <pmacc/mpi/MPIReduce.hpp>
-#include <pmacc/nvidia/functors/Add.hpp>
-#include <pmacc/cuSTL/algorithm/functor/Add.hpp>
-#include <pmacc/memory/shared/Allocate.hpp>
 #include <pmacc/dataManagement/DataConnector.hpp>
-#include <pmacc/nvidia/atomic.hpp>
-#include <pmacc/mappings/threads/ForEachIdx.hpp>
-#include <pmacc/mappings/threads/IdxConfig.hpp>
-#include <pmacc/memory/CtxArray.hpp>
-#include <pmacc/traits/GetNumWorkers.hpp>
-#include <pmacc/traits/HasIdentifiers.hpp>
-#include <pmacc/traits/HasFlag.hpp>
-#include <pmacc/meta/ForEach.hpp>
+#include <pmacc/kernel/atomic.hpp>
+#include <pmacc/lockstep.hpp>
+#include <pmacc/mappings/kernel/AreaMapping.hpp>
 #include <pmacc/math/Vector.hpp>
+#include <pmacc/math/operation.hpp>
+#include <pmacc/memory/shared/Allocate.hpp>
+#include <pmacc/meta/ForEach.hpp>
+#include <pmacc/mpi/MPIReduce.hpp>
+#include <pmacc/traits/GetNumWorkers.hpp>
+#include <pmacc/traits/HasFlag.hpp>
+#include <pmacc/traits/HasIdentifiers.hpp>
 
 #include <boost/mpl/and.hpp>
 
-#include <vector>
 #include <algorithm>
-#include <utility>
-#include <string>
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
 
 namespace picongpu
@@ -95,7 +94,6 @@ namespace picongpu
             T_Mapping mapper,
             T_Filter filter) const
         {
-            using namespace mappings::threads;
             constexpr uint32_t numWorkers = T_numWorkers;
             constexpr uint32_t numParticlesPerFrame
                 = pmacc::math::CT::volume<typename T_ParBox::FrameType::SuperCellSize>::type::value;
@@ -110,12 +108,11 @@ namespace picongpu
             PMACC_SMEM(acc, shSumMomPos, memory::Array<float_X, SuperCellSize::y::value>);
             PMACC_SMEM(acc, shCount_e, memory::Array<float_X, SuperCellSize::y::value>);
 
-            using ParticleDomCfg = IdxConfig<numParticlesPerFrame, numWorkers>;
+            auto forEachParticleInFrame = lockstep::makeForEach<numParticlesPerFrame, numWorkers>(workerIdx);
 
-            using SuperCellYDom = IdxConfig<SuperCellSize::y::value, numWorkers>;
+            auto forEachSuperCellInY = lockstep::makeForEach<SuperCellSize::y::value, numWorkers>(workerIdx);
 
-
-            ForEachIdx<SuperCellYDom>{workerIdx}([&](uint32_t const linearIdx, uint32_t const) {
+            forEachSuperCellInY([&](uint32_t const linearIdx) {
                 // set shared sums of x^2, ux^2, x*ux, particle counter to zero
                 shSumMom2[linearIdx] = 0.0_X;
                 shSumPos2[linearIdx] = 0.0_X;
@@ -134,11 +131,11 @@ namespace picongpu
                 return;
 
             auto accFilter
-                = filter(acc, superCellIdx - mapper.getGuardingSuperCells(), WorkerCfg<numWorkers>{workerIdx});
+                = filter(acc, superCellIdx - mapper.getGuardingSuperCells(), lockstep::Worker<numWorkers>{workerIdx});
 
-            memory::CtxArray<typename FramePtr::type::ParticleType, ParticleDomCfg> currentParticleCtx(
-                workerIdx,
-                [&](uint32_t const linearIdx, uint32_t const) {
+            auto currentParticleCtx = forEachParticleInFrame(
+
+                [&](uint32_t const linearIdx) -> typename FramePtr::type::ParticleType {
                     auto particle = frame[linearIdx];
                     /* - only particles from the last frame must be checked
                      * - all other particles are always valid
@@ -151,9 +148,7 @@ namespace picongpu
             while(frame.isValid())
             {
                 // loop over all particles in the frame
-                ForEachIdx<ParticleDomCfg> forEachParticle(workerIdx);
-
-                forEachParticle([&](uint32_t const, uint32_t const idx) {
+                forEachParticleInFrame([&](lockstep::Idx const idx) {
                     /* get one particle */
                     auto& particle = currentParticleCtx[idx];
                     if(accFilter(acc, particle))
@@ -194,13 +189,13 @@ namespace picongpu
 
                 // set frame to next particle frame
                 frame = pb.getPreviousFrame(frame);
-                forEachParticle([&](uint32_t const linearIdx, uint32_t const idx) {
+                forEachParticleInFrame([&](lockstep::Idx const idx) {
                     /* Update particle for the next round.
                      * The frame list is traversed from the last to the first frame.
                      * Only the last frame can contain gaps therefore all following
                      * frames are fully filled with particles.
                      */
-                    currentParticleCtx[idx] = frame[linearIdx];
+                    currentParticleCtx[idx] = frame[idx];
                 });
             }
 
@@ -211,7 +206,7 @@ namespace picongpu
             const int gOffset
                 = ((superCellIdx - mapper.getGuardingSuperCells()) * MappingDesc::SuperCellSize::toRT()).y();
 
-            ForEachIdx<SuperCellYDom>{workerIdx}([&](uint32_t const linearIdx, uint32_t const) {
+            forEachSuperCellInY([&](uint32_t const linearIdx) {
                 cupla::atomicAdd(
                     acc,
                     &(gSumMom2[gOffset + linearIdx]),
@@ -547,8 +542,6 @@ namespace picongpu
                 m_help->filter.get(m_id),
                 currentStep,
                 binaryKernel);
-
-            dc.releaseData(ParticlesType::FrameType::getName());
 
             // get gSum, ... from GPU
             gSumMom2->deviceToHost();

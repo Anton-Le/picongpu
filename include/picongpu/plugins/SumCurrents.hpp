@@ -23,12 +23,11 @@
 #include "picongpu/simulation_defines.hpp"
 
 #include "picongpu/fields/FieldJ.hpp"
-
-#include <pmacc/dimensions/DataSpaceOperations.hpp>
 #include "picongpu/plugins/ILightweightPlugin.hpp"
-#include <pmacc/memory/shared/Allocate.hpp>
+
 #include <pmacc/dataManagement/DataConnector.hpp>
-#include <pmacc/nvidia/atomic.hpp>
+#include <pmacc/dimensions/DataSpaceOperations.hpp>
+#include <pmacc/memory/shared/Allocate.hpp>
 
 #include <iostream>
 
@@ -180,8 +179,6 @@ namespace picongpu
             PMACC_KERNEL(KernelSumCurrents{})
             (mapper.getGridDim(),
              block)(fieldJ->getDeviceDataBox(), sumcurrents->getDeviceBuffer().getBasePointer(), mapper);
-
-            dc.releaseData(FieldJ::getName());
 
             sumcurrents->deviceToHost();
             return sumcurrents->getHostBuffer().getDataBox()[0];

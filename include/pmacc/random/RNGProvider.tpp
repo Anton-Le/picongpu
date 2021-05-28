@@ -21,11 +21,10 @@
 
 #pragma once
 
-#include "pmacc/random/RNGProvider.hpp"
-#include "pmacc/dimensions/DataSpaceOperations.hpp"
 #include "pmacc/Environment.hpp"
-#include "pmacc/mappings/threads/ForEachIdx.hpp"
-#include "pmacc/mappings/threads/IdxConfig.hpp"
+#include "pmacc/dimensions/DataSpaceOperations.hpp"
+#include "pmacc/lockstep.hpp"
+#include "pmacc/random/RNGProvider.hpp"
 #include "pmacc/traits/GetNumWorkers.hpp"
 
 #include <memory>
@@ -43,17 +42,13 @@ namespace pmacc
                 template<typename T_RNGBox, typename T_Space, typename T_Acc>
                 DINLINE void operator()(T_Acc const& acc, T_RNGBox rngBox, uint32_t seed, const T_Space size) const
                 {
-                    using namespace mappings::threads;
-
                     constexpr uint32_t numWorkers = T_numWorkers;
                     uint32_t const workerIdx = cupla::threadIdx(acc).x;
 
-                    using SupercellDomCfg = IdxConfig<T_blockSize, numWorkers>;
-
                     // each virtual worker initialize one rng state
-                    ForEachIdx<SupercellDomCfg> forEachCell(workerIdx);
+                    auto forEachCell = lockstep::makeForEach<T_blockSize, numWorkers>(workerIdx);
 
-                    forEachCell([&](uint32_t const linearIdx, uint32_t const) {
+                    forEachCell([&](uint32_t const linearIdx) {
                         uint32_t const linearTid = cupla::blockIdx(acc).x * T_blockSize + linearIdx;
                         if(linearTid >= size.productOfComponents())
                             return;
@@ -97,7 +92,6 @@ namespace pmacc
         {
             auto provider = Environment<>::get().DataConnector().get<RNGProvider>(id, true);
             Handle result(provider->getDeviceDataBox());
-            Environment<>::get().DataConnector().releaseData(id);
             return result;
         }
 

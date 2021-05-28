@@ -21,41 +21,41 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
-#include "picongpu/particles/traits/SpeciesEligibleForSolver.hpp"
-#include "picongpu/plugins/ISimulationPlugin.hpp"
-#include "picongpu/plugins/common/stringHelpers.hpp"
 
 #include "picongpu/fields/FieldTmp.hpp"
 #include "picongpu/param/xrayScattering.param"
-#include "picongpu/plugins/xrayScattering/beam/XrayScatteringBeam.hpp"
+#include "picongpu/particles/particleToGrid/derivedAttributes/Density.def"
+#include "picongpu/particles/traits/SpeciesEligibleForSolver.hpp"
+#include "picongpu/plugins/ISimulationPlugin.hpp"
+#include "picongpu/plugins/common/stringHelpers.hpp"
+#include "picongpu/plugins/xrayScattering/DetermineElectronDensitySolver.hpp"
+#include "picongpu/plugins/xrayScattering/GetScatteringVector.hpp"
 #include "picongpu/plugins/xrayScattering/XrayScattering.kernel"
 #include "picongpu/plugins/xrayScattering/XrayScatteringWriter.hpp"
+#include "picongpu/plugins/xrayScattering/beam/XrayScatteringBeam.hpp"
 #include "picongpu/plugins/xrayScattering/xrayScatteringUtilities.hpp"
-#include "picongpu/plugins/xrayScattering/GetScatteringVector.hpp"
-#include "picongpu/plugins/xrayScattering/DetermineElectronDensitySolver.hpp"
-#include "picongpu/particles/particleToGrid/derivedAttributes/Density.def"
 
+#include <pmacc/assert.hpp>
 #include <pmacc/dataManagement/DataConnector.hpp>
 #include <pmacc/dimensions/DataSpaceOperations.hpp>
 #include <pmacc/mappings/kernel/AreaMapping.hpp>
+#include <pmacc/math/operation.hpp>
 #include <pmacc/mpi/MPIReduce.hpp>
 #include <pmacc/mpi/reduceMethods/Reduce.hpp>
-#include <pmacc/nvidia/functors/Add.hpp>
 #include <pmacc/traits/GetNumWorkers.hpp>
 #include <pmacc/traits/HasFlag.hpp>
-#include <pmacc/assert.hpp>
 
 #include <boost/filesystem.hpp>
 #include <boost/mpl/bool.hpp>
 
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <map>
+#include <memory>
 #include <string>
 #include <vector>
-#include <cstdint>
-#include <memory>
-#include <map>
 
 namespace picongpu
 {
@@ -358,7 +358,7 @@ namespace picongpu
                     __getTransactionEvent().waitForFinished();
 
                     reduce(
-                        nvidia::functors::Add(),
+                        pmacc::math::operation::Add(),
                         amplitudeMaster.data(),
                         amplitude->getHostBuffer().getBasePointer(),
                         amplitude->getHostBuffer().getCurrentSize(),
@@ -500,8 +500,6 @@ namespace picongpu
                     using ElectronDensitySolver = typename DetermineElectronDensitySolver<T_ParticlesType>::type;
                     // Calculate density.
                     tmpField->template computeValue<CORE + BORDER, ElectronDensitySolver>(*species, currentStep);
-                    // Release particle data.
-                    dc.releaseData(T_ParticlesType::FrameType::getName());
                     // Get the field data box.
                     FieldTmp::DataBoxType tmpFieldBox = tmpField->getGridBuffer().getDeviceBuffer().getDataBox();
                     return tmpFieldBox;
@@ -656,8 +654,7 @@ namespace picongpu
                     {
                         runKernelInMirrorMode(cellsGrid, fieldTmpNoGuard, globalOffset, numBlocks, fieldPos);
                     }
-                    // Release density data.
-                    dc.releaseData(FieldTmp::getUniqueId(0));
+
                     // Write to disk.
                     if(pluginSystem::containsStep(outputPeriod, currentStep))
                         writeOutput();

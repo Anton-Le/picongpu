@@ -20,14 +20,15 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
-#include "picongpu/plugins/ISimulationPlugin.hpp"
-#include "picongpu/plugins/multi/ISlave.hpp"
-#include "picongpu/plugins/multi/IHelp.hpp"
-#include "picongpu/particles/traits/SpeciesEligibleForSolver.hpp"
 
-#include <vector>
+#include "picongpu/particles/traits/SpeciesEligibleForSolver.hpp"
+#include "picongpu/plugins/ISimulationPlugin.hpp"
+#include "picongpu/plugins/multi/IHelp.hpp"
+#include "picongpu/plugins/multi/ISlave.hpp"
+
 #include <list>
 #include <stdexcept>
+#include <vector>
 
 
 namespace picongpu
@@ -88,6 +89,19 @@ namespace picongpu
                 {
                     for(auto& slave : slaveList)
                         slave->restart(restartStep, restartDirectory);
+                }
+
+                /** Call the onParticleLeave() method for all slave instances.
+                 *
+                 * Called each timestep if particles are leaving the global simulation volume.
+                 *
+                 * \param speciesName name of the particle species
+                 * \param direction the direction the particles are leaving the simulation
+                 */
+                void onParticleLeave(const std::string& speciesName, const int32_t direction)
+                {
+                    for(auto& slave : slaveList)
+                        slave->onParticleLeave(speciesName, direction);
                 }
 
                 /** create a checkpoint

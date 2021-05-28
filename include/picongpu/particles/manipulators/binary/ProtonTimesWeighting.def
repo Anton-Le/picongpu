@@ -20,6 +20,7 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/particles/manipulators/generic/Free.def"
 #include "picongpu/particles/traits/GetAtomicNumbers.hpp"
 
@@ -60,7 +61,7 @@ namespace picongpu
                         HDINLINE void operator()(T_DesParticle& particleDest, T_SrcParticle const&, T_Args&&...)
                         {
                             float_X const protonNumber
-                                = traits::GetAtomicNumbers<T_SrcParticle>::type::numberOfProtons;
+                                = picongpu::traits::GetAtomicNumbers<T_SrcParticle>::type::numberOfProtons;
                             particleDest[weighting_] *= protonNumber;
                         }
                     };

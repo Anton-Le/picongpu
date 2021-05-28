@@ -1,5 +1,6 @@
 /* Copyright 2014-2021 Axel Huebl, Felix Schmitt, Heiko Burau, Rene Widera,
- *                     Benjamin Worpitz, Alexander Grund, Franz Poeschel
+ *                     Benjamin Worpitz, Alexander Grund, Franz Poeschel,
+ *                     Pawel Ordyna
  *
  * This file is part of PIConGPU.
  *
@@ -20,20 +21,29 @@
 
 #pragma once
 
+#include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/fields/FieldB.hpp"
 #include "picongpu/fields/FieldE.hpp"
 #include "picongpu/fields/FieldJ.hpp"
 #include "picongpu/fields/FieldTmp.hpp"
 #include "picongpu/particles/filter/filter.hpp"
 #include "picongpu/particles/traits/SpeciesEligibleForSolver.hpp"
+#include "picongpu/plugins/common/openPMDVersion.def"
+#include "picongpu/plugins/common/openPMDWriteMeta.hpp"
 #include "picongpu/plugins/misc/ComponentNames.hpp"
 #include "picongpu/plugins/misc/SpeciesFilter.hpp"
 #include "picongpu/plugins/misc/misc.hpp"
 #include "picongpu/plugins/multi/IHelp.hpp"
 #include "picongpu/plugins/multi/Option.hpp"
+#include "picongpu/plugins/openPMD/Json.hpp"
+#include "picongpu/plugins/openPMD/NDScalars.hpp"
+#include "picongpu/plugins/openPMD/WriteSpecies.hpp"
 #include "picongpu/plugins/openPMD/openPMDWriter.def"
+#include "picongpu/plugins/openPMD/restart/LoadSpecies.hpp"
+#include "picongpu/plugins/openPMD/restart/RestartFieldLoader.hpp"
+#include "picongpu/plugins/output/IIOBackend.hpp"
 #include "picongpu/simulation/control/MovingWindow.hpp"
-#include "picongpu/simulation_defines.hpp"
 #include "picongpu/traits/IsFieldDomainBound.hpp"
 
 #include <pmacc/Environment.hpp>
@@ -46,22 +56,11 @@
 #include <pmacc/math/Vector.hpp>
 #include <pmacc/particles/IdProvider.def>
 #include <pmacc/particles/frame_types.hpp>
+#include <pmacc/particles/memory/buffers/MallocMCBuffer.hpp>
 #include <pmacc/particles/operations/CountParticles.hpp>
 #include <pmacc/pluginSystem/PluginConnector.hpp>
 #include <pmacc/simulationControl/TimeInterval.hpp>
 #include <pmacc/static_assert.hpp>
-#include <pmacc/particles/memory/buffers/MallocMCBuffer.hpp>
-
-#include "picongpu/plugins/misc/SpeciesFilter.hpp"
-#include "picongpu/plugins/openPMD/Json.hpp"
-#include "picongpu/plugins/openPMD/NDScalars.hpp"
-#include "picongpu/plugins/openPMD/WriteMeta.hpp"
-#include "picongpu/plugins/openPMD/openPMDVersion.def"
-#include "picongpu/plugins/openPMD/WriteSpecies.hpp"
-#include "picongpu/plugins/openPMD/restart/LoadSpecies.hpp"
-#include "picongpu/plugins/openPMD/restart/RestartFieldLoader.hpp"
-#include "picongpu/plugins/output/IIOBackend.hpp"
-
 #include <pmacc/traits/Limits.hpp>
 
 #include <boost/filesystem.hpp>
@@ -84,10 +83,11 @@
 #include <cstdint>
 #include <cstdlib> // getenv
 #include <list>
-#include <pthread.h>
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include <pthread.h>
 
 
 namespace picongpu
@@ -480,19 +480,17 @@ Please pick either of the following:
                         std::move(inCellPosition),
                         timeOffset,
                         isDomainBound);
-
-                    dc.releaseData(T_Field::getName());
 #endif
                 }
             };
 
-            /** Calculate FieldTmp with given solver and particle species
+            /** Calculate FieldTmp with given solver, particle species, and filter
              * and write them to openPMD.
              *
              * FieldTmp is calculated on device and then dumped to openPMD.
              */
-            template<typename Solver, typename Species>
-            struct GetFields<FieldTmpOperation<Solver, Species>>
+            template<typename Solver, typename Species, typename Filter>
+            struct GetFields<FieldTmpOperation<Solver, Species, Filter>>
             {
                 /*
                  * This is only a wrapper function to allow disable nvcc warnings.
@@ -526,7 +524,7 @@ Please pick either of the following:
                  */
                 static std::string getName()
                 {
-                    return FieldTmpOperation<Solver, Species>::getName();
+                    return FieldTmpOperation<Solver, Species, Filter>::getName();
                 }
 
                 HINLINE void operator_impl(ThreadParams* params)
@@ -543,13 +541,12 @@ Please pick either of the following:
 
                     fieldTmp->getGridBuffer().getDeviceBuffer().setValue(ValueType::create(0.0));
                     /*run algorithm*/
-                    fieldTmp->template computeValue<CORE + BORDER, Solver>(*speciesTmp, params->currentStep);
+                    fieldTmp->template computeValue<CORE + BORDER, Solver, Filter>(*speciesTmp, params->currentStep);
 
                     EventTask fieldTmpEvent = fieldTmp->asyncCommunication(__getTransactionEvent());
                     __setTransactionEvent(fieldTmpEvent);
                     /* copy data to host that we can write same to disk*/
                     fieldTmp->getGridBuffer().deviceToHost();
-                    dc.releaseData(Species::FrameType::getName());
                     /*## finish update field ##*/
 
                     const uint32_t components = GetNComponents<ValueType>::value;
@@ -582,8 +579,6 @@ Please pick either of the following:
                         std::move(inCellPosition),
                         timeOffset,
                         isDomainBound);
-
-                    dc.releaseData(FieldTmp::getUniqueId(0));
                 }
             };
 
@@ -781,9 +776,9 @@ Please pick either of the following:
 
             void initWrite()
             {
-                // may be zero
-                auto size = mThreadParams.window.localDimensions.size.productOfComponents();
-                mThreadParams.fieldBuffer.resize(size);
+                // fieldBuffer will only be resized if needed
+                // in some openPMD backends, it's more efficient to let the backend handle buffer creation
+                // (span-based RecordComponent::storeChunk() API)
             }
 
             /**
@@ -808,6 +803,7 @@ Please pick either of the following:
                     }
                 }
 
+#if(PMACC_CUDA_ENABLED == 1 || ALPAKA_ACC_GPU_HIP_ENABLED == 1)
                 /* copy species only one time per timestep to the host */
                 if(mThreadParams.strategy == WriteSpeciesStrategy::ADIOS && lastSpeciesSyncStep != currentStep)
                 {
@@ -824,9 +820,8 @@ Please pick either of the following:
                     meta::ForEach<FileCheckpointParticles, CopySpeciesToHost<bmpl::_1>> copySpeciesToHost;
                     copySpeciesToHost();
                     lastSpeciesSyncStep = currentStep;
-
-                    dc.releaseData(MallocMCBuffer<DeviceHeap>::getName());
                 }
+#endif
 
                 TimeIntervall timer;
                 timer.toggleStart();
@@ -947,7 +942,7 @@ Please pick either of the following:
 
                 DataSpace<simDim> field_no_guard = params->window.localDimensions.size;
                 DataSpace<simDim> field_guard = field_layout.getGuard() + params->localWindowToDomainOffset;
-                std::vector<float_X>& dstBuffer = params->fieldBuffer;
+                std::vector<float_X>& fieldBuffer = params->fieldBuffer;
 
                 auto fieldsSizeDims = params->fieldsSizeDims;
                 auto fieldsGlobalSizeDims = params->fieldsGlobalSizeDims;
@@ -960,11 +955,9 @@ Please pick either of the following:
                 {
                     field_no_guard = field_layout.getDataSpaceWithoutGuarding();
                     field_guard = field_layout.getGuard();
-                    dstBuffer.resize(field_no_guard.productOfComponents());
 
                     DataConnector& dc = Environment<>::get().DataConnector();
                     fieldsSizeDims = precisionCast<uint64_t>(params->gridLayout.getDataSpaceWithoutGuarding());
-                    dc.releaseData(name);
 
                     /* Scan the PML buffer local size along all local domains
                      * This code is based on the same operation in hdf5::Field::writeField(),
@@ -1004,9 +997,51 @@ Please pick either of the following:
                     fieldsOffsetDims[0] = globalOffsetFile;
                 }
 
+                auto const componentSize = field_no_guard.productOfComponents();
+
                 /* write the actual field data */
                 for(uint32_t d = 0; d < nComponents; d++)
                 {
+                    ::openPMD::MeshRecordComponent mrc
+                        = mesh[nComponents > 1 ? name_lookup_tpl[d] : ::openPMD::RecordComponent::SCALAR];
+                    std::string datasetName = nComponents > 1
+                        ? params->openPMDSeries->meshesPath() + name + "/" + name_lookup_tpl[d]
+                        : params->openPMDSeries->meshesPath() + name;
+
+                    params->initDataset<simDim>(
+                        mrc,
+                        openPMDType,
+                        fieldsGlobalSizeDims,
+                        true,
+                        params->compressionMethod,
+                        datasetName);
+
+                    // define record component level attributes
+                    mrc.setPosition(inCellPosition.at(d));
+                    mrc.setUnitSI(unit.at(d));
+
+                    if(componentSize == 0)
+                    {
+                        // technically not necessary if we write no dataset,
+                        // but let's keep things uniform
+                        params->openPMDSeries->flush();
+                        continue;
+                    }
+
+                    // ask openPMD to create a buffer for us
+                    // in some backends (ADIOS2), this allows avoiding memcopies
+                    auto span = storeChunkSpan<float_X>(
+                        mrc,
+                        asStandardVector(fieldsOffsetDims),
+                        asStandardVector(fieldsSizeDims),
+                        [&fieldBuffer](size_t size) {
+                            // if there is no special backend support for creating buffers,
+                            // reuse the fieldBuffer
+                            fieldBuffer.resize(size);
+                            return std::shared_ptr<float_X>{fieldBuffer.data(), [](auto*) {}};
+                        });
+                    auto dstBuffer = span.currentBuffer();
+
                     const size_t plane_full_size = field_full[1] * field_full[0] * nComponents;
                     const size_t plane_no_guard_size = field_no_guard[1] * field_no_guard[0];
 
@@ -1035,30 +1070,6 @@ Please pick either of the following:
                             }
                         }
                     }
-
-                    ::openPMD::MeshRecordComponent mrc
-                        = mesh[nComponents > 1 ? name_lookup_tpl[d] : ::openPMD::RecordComponent::SCALAR];
-
-                    std::string datasetName = nComponents > 1
-                        ? params->openPMDSeries->meshesPath() + name + "/" + name_lookup_tpl[d]
-                        : params->openPMDSeries->meshesPath() + name;
-
-                    params->initDataset<simDim>(
-                        mrc,
-                        openPMDType,
-                        fieldsGlobalSizeDims,
-                        true,
-                        params->compressionMethod,
-                        datasetName);
-                    if(dstBuffer.size() > 0)
-                        mrc.storeChunk<std::vector<float_X>>(
-                            dstBuffer,
-                            asStandardVector(fieldsOffsetDims),
-                            asStandardVector(fieldsSizeDims));
-
-                    // define record component level attributes
-                    mrc.setPosition(inCellPosition.at(d));
-                    mrc.setUnitSI(unit.at(d));
 
                     params->openPMDSeries->flush();
                 }
@@ -1220,7 +1231,7 @@ Please pick either of the following:
 
                 /* attributes written here are pure meta data */
                 WriteMeta writeMetaAttributes;
-                writeMetaAttributes(threadParams);
+                writeMetaAttributes(*threadParams->openPMDSeries, threadParams->currentStep);
 
                 // avoid deadlock between not finished pmacc tasks and mpi calls in
                 // openPMD

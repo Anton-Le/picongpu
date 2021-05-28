@@ -20,15 +20,14 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
-#include "picongpu/fields/absorber/Absorber.hpp"
+
 #include "picongpu/fields/LaserPhysics.def"
+#include "picongpu/fields/absorber/Absorber.hpp"
 #include "picongpu/fields/laserProfiles/profiles.hpp"
 
 #include <pmacc/dimensions/GridLayout.hpp>
+#include <pmacc/lockstep.hpp>
 #include <pmacc/mappings/simulation/SubGrid.hpp>
-#include <pmacc/mappings/threads/WorkerCfg.hpp>
-#include <pmacc/mappings/threads/ForEachIdx.hpp>
-#include <pmacc/mappings/threads/IdxConfig.hpp>
 
 #include <cmath>
 
@@ -71,10 +70,9 @@ namespace picongpu
                 uint32_t cellOffsetInSuperCellFromInitPlaneY
                     = LaserFunctor::Unitless::initPlaneY % SuperCellSize::y::value;
 
-                mappings::threads::ForEachIdx<mappings::threads::IdxConfig<planeSize, numWorkers>>{
-                    workerIdx}([&](uint32_t const linearIdx, uint32_t const) {
-                    auto accLaserFunctor
-                        = laserFunctor(acc, localSuperCellOffset, mappings::threads::WorkerCfg<numWorkers>{workerIdx});
+                auto forEachCell = lockstep::makeForEach<planeSize, numWorkers>(workerIdx);
+                forEachCell([&](uint32_t const linearIdx) {
+                    auto accLaserFunctor = laserFunctor(acc, localSuperCellOffset, forEachCell.getWorkerCfg());
 
                     /* cell index within the superCell */
                     DataSpace<simDim> cellIdxInSuperCell
@@ -125,11 +123,12 @@ namespace picongpu
                     constexpr bool isLaserDisabled = laserProfiles::Selected::Unitless::INIT_TIME == 0.0_X;
                     constexpr bool isLaserInitInFirstCell = laserProfiles::Selected::Unitless::initPlaneY == 0;
                     // X + 1 is a workaround to avoid warning: pointless comparison of unsigned integer with zero
-                    constexpr bool isInitPlaneYOutsideOfAbsorber
-                        = laserProfiles::Selected::Unitless::initPlaneY + 1 > absorber::numCells[1][0] + 1;
-                    PMACC_CASSERT_MSG(
-                        __initPlaneY_needs_to_be_greater_than_the_top_absorber_cells_or_zero,
-                        isLaserDisabled || isLaserInitInFirstCell || isInitPlaneYOutsideOfAbsorber);
+                    auto& absorber = absorber::Absorber::get();
+                    bool isInitPlaneYOutsideOfAbsorber
+                        = laserProfiles::Selected::Unitless::initPlaneY + 1 > absorber.getGlobalThickness()(1, 0) + 1;
+                    PMACC_VERIFY_MSG(
+                        isLaserDisabled || isLaserInitInFirstCell || isInitPlaneYOutsideOfAbsorber,
+                        "laser initPlaneY needs to be greater than the top absorber cells or zero");
 
                     /* Calculate how many neighbors to the left we have
                      * to initialize the laser in the E-Field

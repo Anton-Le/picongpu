@@ -21,27 +21,28 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
-#include <pmacc/traits/HasFlag.hpp>
+
 #include "picongpu/fields/Fields.def"
-#include <pmacc/math/MapTuple.hpp>
+#include "picongpu/particles/traits/GetIonizerList.hpp"
 
 #include <pmacc/Environment.hpp>
 #include <pmacc/communication/AsyncCommunication.hpp>
+#include <pmacc/math/MapTuple.hpp>
 #include <pmacc/particles/meta/FindByNameOrType.hpp>
-
-#include "picongpu/particles/traits/GetIonizerList.hpp"
+#include <pmacc/traits/HasFlag.hpp>
 #if(PMACC_CUDA_ENABLED == 1)
 #    include "picongpu/particles/bremsstrahlung/Bremsstrahlung.hpp"
 #endif
-#include "picongpu/particles/traits/GetPhotonCreator.hpp"
-#include "picongpu/particles/synchrotronPhotons/SynchrotronFunctions.hpp"
 #include "picongpu/particles/creation/creation.hpp"
+#include "picongpu/particles/flylite/IFlyLite.hpp"
+#include "picongpu/particles/synchrotronPhotons/SynchrotronFunctions.hpp"
+#include "picongpu/particles/traits/GetPhotonCreator.hpp"
+
 #include <pmacc/particles/traits/FilterByFlag.hpp>
 #include <pmacc/particles/traits/ResolveAliasFromSpecies.hpp>
-#include "picongpu/particles/flylite/IFlyLite.hpp"
 
-#include <boost/mpl/plus.hpp>
 #include <boost/mpl/accumulate.hpp>
+#include <boost/mpl/plus.hpp>
 
 #include <memory>
 
@@ -65,7 +66,6 @@ namespace picongpu
                 DataConnector& dc = Environment<>::get().DataConnector();
                 auto species = dc.get<SpeciesType>(FrameType::getName(), true);
                 species = nullptr;
-                dc.releaseData(FrameType::getName());
             }
         };
 
@@ -126,7 +126,6 @@ namespace picongpu
                 DataConnector& dc = Environment<>::get().DataConnector();
                 auto species = dc.get<SpeciesType>(FrameType::getName(), true);
                 species->reset(currentStep);
-                dc.releaseData(FrameType::getName());
             }
         };
 
@@ -194,7 +193,6 @@ namespace picongpu
 
                 __startTransaction(eventInt);
                 species->update(currentStep);
-                dc.releaseData(FrameType::getName());
                 EventTask ev = __endTransaction();
                 updateEvent.push_back(ev);
             }
@@ -222,8 +220,6 @@ namespace picongpu
 
                 updateEventList.pop_front();
                 commEventList.push_back(communication::asyncCommunication(*species, updateEvent));
-
-                dc.releaseData(FrameType::getName());
             }
         };
 
@@ -313,9 +309,6 @@ namespace picongpu
                  * the last frame is not completely filled but every other before is full
                  */
                 electronsPtr->fillAllGaps();
-
-                dc.releaseData(FrameType::getName());
-                dc.releaseData(DestFrameType::getName());
             }
         };
 
@@ -414,9 +407,6 @@ namespace picongpu
                     *photonSpeciesPtr,
                     bremsstrahlungFunctor,
                     cellDesc);
-
-                dc.releaseData(ElectronFrameType::getName());
-                dc.releaseData(PhotonFrameType::getName());
             }
         };
 #endif
@@ -463,9 +453,6 @@ namespace picongpu
                     synchrotronFunctions.getCursor(SynchrotronFunctions::second));
 
                 creation::createParticlesFromSpecies(*electronSpeciesPtr, *photonSpeciesPtr, photonCreator, cellDesc);
-
-                dc.releaseData(ElectronFrameType::getName());
-                dc.releaseData(PhotonFrameType::getName());
             }
         };
 

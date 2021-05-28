@@ -20,20 +20,21 @@
 #pragma once
 
 #include "picongpu/algorithms/Gamma.hpp"
-#include "picongpu/traits/frame/GetMass.hpp"
-#include "picongpu/traits/frame/GetCharge.hpp"
 #include "picongpu/fields/CellType.hpp"
-#include "picongpu/traits/FieldPosition.hpp"
 #include "picongpu/particles/particleToGrid/ComputeGridValuePerFrame.def"
+#include "picongpu/particles/traits/GetAtomicNumbers.hpp"
+#include "picongpu/traits/FieldPosition.hpp"
+#include "picongpu/traits/frame/GetCharge.hpp"
+#include "picongpu/traits/frame/GetMass.hpp"
+
+#include <pmacc/algorithms/math/defines/cross.hpp>
+#include <pmacc/algorithms/math/defines/dot.hpp>
+#include <pmacc/algorithms/math/defines/pi.hpp>
+#include <pmacc/dataManagement/DataConnector.hpp>
+#include <pmacc/lockstep/Worker.hpp>
+#include <pmacc/math/operation.hpp>
 #include <pmacc/particles/operations/Assign.hpp>
 #include <pmacc/particles/operations/Deselect.hpp>
-#include "picongpu/particles/traits/GetAtomicNumbers.hpp"
-
-#include <pmacc/dataManagement/DataConnector.hpp>
-#include <pmacc/algorithms/math/defines/dot.hpp>
-#include <pmacc/algorithms/math/defines/cross.hpp>
-#include <pmacc/algorithms/math/defines/pi.hpp>
-#include <pmacc/mappings/threads/WorkerCfg.hpp>
 
 
 namespace picongpu
@@ -68,7 +69,6 @@ namespace picongpu
                 using DensitySolver = typename particleToGrid::
                     CreateFieldTmpOperation<T_IonSpecies, particleToGrid::derivedAttributes::Density>::type::Solver;
                 fieldIonDensity->template computeValue<CORE + BORDER, DensitySolver>(*ionSpecies, currentStep);
-                dc.releaseData(T_IonSpecies::FrameType::getName());
 
                 /* initialize device-side tmp-field databoxes */
                 this->ionDensityBox = fieldIonDensity->getDeviceDataBox();
@@ -85,7 +85,7 @@ namespace picongpu
                 cachedIonDensity = CachedBox::create<0, ValueTypeIonDensity>(acc, BlockArea());
 
                 /* instance of nvidia assignment operator */
-                nvidia::functors::Assign assign;
+                pmacc::math::operation::Assign assign;
                 /* copy fields from global to shared */
                 const auto fieldIonDensityBlock = ionDensityBox.shift(blockCell);
 

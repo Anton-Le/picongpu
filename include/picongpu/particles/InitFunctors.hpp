@@ -20,50 +20,32 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/fields/Fields.def"
-#include <pmacc/meta/conversion/TypeToPointerPair.hpp>
-#include "picongpu/particles/manipulators/manipulators.def"
-#include "picongpu/particles/densityProfiles/IProfile.def"
 #include "picongpu/particles/Manipulate.hpp"
+#include "picongpu/particles/densityProfiles/IProfile.def"
 #include "picongpu/particles/filter/filter.def"
 #include "picongpu/particles/manipulators/manipulators.def"
 
 #include <pmacc/Environment.hpp>
-#include <pmacc/traits/Resolve.hpp>
-#include <pmacc/traits/HasFlag.hpp>
-#include <pmacc/traits/GetFlagType.hpp>
 #include <pmacc/math/MapTuple.hpp>
+#include <pmacc/meta/conversion/TypeToPointerPair.hpp>
 #include <pmacc/particles/meta/FindByNameOrType.hpp>
+#include <pmacc/traits/GetFlagType.hpp>
+#include <pmacc/traits/HasFlag.hpp>
+#include <pmacc/traits/Resolve.hpp>
 
-#include <boost/mpl/if.hpp>
-#include <boost/mpl/plus.hpp>
 #include <boost/mpl/accumulate.hpp>
 #include <boost/mpl/apply.hpp>
 #include <boost/mpl/apply_wrap.hpp>
+#include <boost/mpl/if.hpp>
+#include <boost/mpl/plus.hpp>
 
 
 namespace picongpu
 {
     namespace particles
     {
-        /** call a functor
-         *
-         * @tparam T_Functor unary lambda functor
-         *                   operator() must take two params
-         *                      - first: storage tuple
-         *                      - second: current time step
-         */
-        template<typename T_Functor = bmpl::_1>
-        struct CallFunctor
-        {
-            using Functor = T_Functor;
-
-            HINLINE void operator()(const uint32_t currentStep)
-            {
-                Functor()(currentStep);
-            }
-        };
-
         /** Create particle distribution from a normalized density profile
          *
          * Create particles inside a species. The created particles are macroscopically
@@ -106,8 +88,6 @@ namespace picongpu
                 DensityFunctor densityFunctor(currentStep);
                 PositionFunctor positionFunctor(currentStep);
                 speciesPtr->initDensityProfile(densityFunctor, positionFunctor, currentStep);
-
-                dc.releaseData(FrameType::getName());
             }
         };
 
@@ -167,9 +147,6 @@ namespace picongpu
                 SrcFilterInterfaced srcFilter(currentStep);
 
                 speciesPtr->deviceDeriveFrom(*srcSpeciesPtr, filteredManipulator, srcFilter);
-
-                dc.releaseData(DestFrameType::getName());
-                dc.releaseData(SrcFrameType::getName());
             }
         };
 
@@ -219,7 +196,6 @@ namespace picongpu
                 DataConnector& dc = Environment<>::get().DataConnector();
                 auto speciesPtr = dc.get<SpeciesType>(FrameType::getName(), true);
                 speciesPtr->fillAllGaps();
-                dc.releaseData(FrameType::getName());
             }
         };
 

@@ -20,13 +20,14 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
-#include "picongpu/particles/manipulators/generic/FreeRng.def"
-#include "picongpu/particles/functor/misc/Rng.hpp"
-#include "picongpu/particles/functor/User.hpp"
 
-#include <utility>
-#include <type_traits>
+#include "picongpu/particles/functor/User.hpp"
+#include "picongpu/particles/functor/misc/Rng.hpp"
+#include "picongpu/particles/manipulators/generic/FreeRng.def"
+
 #include <string>
+#include <type_traits>
+#include <utility>
 
 
 namespace picongpu
@@ -100,7 +101,7 @@ namespace picongpu
 
                     /** create functor for the accelerator
                      *
-                     * @tparam T_WorkerCfg pmacc::mappings::threads::WorkerCfg, configuration of the worker
+                     * @tparam T_WorkerCfg lockstep::Worker, configuration of the worker
                      * @tparam T_Acc alpaka accelerator type
                      *
                      * @param alpaka accelerator

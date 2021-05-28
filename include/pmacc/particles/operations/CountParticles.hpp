@@ -21,18 +21,16 @@
 
 #pragma once
 
-#include "pmacc/types.hpp"
-#include "pmacc/memory/buffers/GridBuffer.hpp"
+#include "pmacc/kernel/atomic.hpp"
+#include "pmacc/lockstep.hpp"
 #include "pmacc/mappings/kernel/AreaMapping.hpp"
+#include "pmacc/memory/buffers/GridBuffer.hpp"
+#include "pmacc/memory/shared/Allocate.hpp"
 #include "pmacc/particles/memory/dataTypes/FramePointer.hpp"
-
 #include "pmacc/particles/particleFilter/FilterFactory.hpp"
 #include "pmacc/particles/particleFilter/PositionFilter.hpp"
-#include "pmacc/nvidia/atomic.hpp"
-#include "pmacc/memory/shared/Allocate.hpp"
 #include "pmacc/traits/GetNumWorkers.hpp"
-#include "pmacc/mappings/threads/ForEachIdx.hpp"
-#include "pmacc/mappings/threads/IdxConfig.hpp"
+#include "pmacc/types.hpp"
 
 
 namespace pmacc
@@ -69,8 +67,6 @@ namespace pmacc
             T_Mapping const mapper,
             T_ParticleFilter parFilter) const
         {
-            using namespace mappings::threads;
-
             using Frame = typename T_PBox::FrameType;
             using FramePtr = typename T_PBox::FramePtr;
             constexpr uint32_t dim = T_Mapping::Dim;
@@ -89,9 +85,9 @@ namespace pmacc
 
             DataSpace<dim> const superCellIdx(mapper.getSuperCellIndex(DataSpace<dim>(cupla::blockIdx(acc))));
 
-            ForEachIdx<IdxConfig<1, numWorkers>> onlyMaster{workerIdx};
+            auto onlyMaster = lockstep::makeMaster(workerIdx);
 
-            onlyMaster([&](uint32_t const, uint32_t const) {
+            onlyMaster([&]() {
                 frame = pb.getLastFrame(superCellIdx);
                 particlesInSuperCell = pb.getSuperCell(superCellIdx).getSizeLastFrame();
                 counter = 0;
@@ -103,14 +99,16 @@ namespace pmacc
                 return; // end kernel if we have no frames
             filter.setSuperCellPosition((superCellIdx - mapper.getGuardingSuperCells()) * mapper.getSuperCellSize());
 
-            auto accParFilter
-                = parFilter(acc, superCellIdx - mapper.getGuardingSuperCells(), WorkerCfg<numWorkers>{workerIdx});
+            auto accParFilter = parFilter(
+                acc,
+                superCellIdx - mapper.getGuardingSuperCells(),
+                lockstep::Worker<numWorkers>{workerIdx});
 
-            ForEachIdx<IdxConfig<frameSize, numWorkers>> forEachParticle(workerIdx);
+            auto forEachParticle = lockstep::makeForEach<frameSize, numWorkers>(workerIdx);
 
             while(frame.isValid())
             {
-                forEachParticle([&](uint32_t const linearIdx, uint32_t const idx) {
+                forEachParticle([&](uint32_t const linearIdx) {
                     if(linearIdx < particlesInSuperCell)
                     {
                         bool const useParticle = filter(*frame, linearIdx);
@@ -118,14 +116,14 @@ namespace pmacc
                         {
                             auto parSrc = (frame[linearIdx]);
                             if(accParFilter(acc, parSrc))
-                                nvidia::atomicAllInc(acc, &counter, ::alpaka::hierarchy::Threads{});
+                                kernel::atomicAllInc(acc, &counter, ::alpaka::hierarchy::Threads{});
                         }
                     }
                 });
 
                 cupla::__syncthreads(acc);
 
-                onlyMaster([&](uint32_t const, uint32_t const) {
+                onlyMaster([&]() {
                     frame = pb.getPreviousFrame(frame);
                     particlesInSuperCell = frameSize;
                 });
@@ -133,7 +131,7 @@ namespace pmacc
                 cupla::__syncthreads(acc);
             }
 
-            onlyMaster([&](uint32_t const, uint32_t const) {
+            onlyMaster([&]() {
                 cupla::atomicAdd(acc, gCounter, static_cast<uint64_cu>(counter), ::alpaka::hierarchy::Blocks{});
             });
         }

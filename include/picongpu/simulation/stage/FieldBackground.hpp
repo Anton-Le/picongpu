@@ -22,14 +22,14 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
-#include "picongpu/fields/background/cellwiseOperation.hpp"
+
 #include "picongpu/fields/FieldB.hpp"
 #include "picongpu/fields/FieldE.hpp"
+#include "picongpu/fields/background/cellwiseOperation.hpp"
 
-#include <pmacc/dataManagement/DataConnector.hpp>
 #include <pmacc/Environment.hpp>
-#include <pmacc/nvidia/functors/Add.hpp>
-#include <pmacc/nvidia/functors/Sub.hpp>
+#include <pmacc/dataManagement/DataConnector.hpp>
+#include <pmacc/math/operation.hpp>
 #include <pmacc/type/Area.hpp>
 
 #include <boost/program_options.hpp>
@@ -80,7 +80,6 @@ namespace picongpu
                             auto field = dc.get<Field>(Field::getName(), true);
                             auto const& gridBuffer = field->getGridBuffer();
                             duplicateBuffer = pmacc::makeDeepCopy(gridBuffer.getDeviceBuffer());
-                            dc.releaseData(Field::getName());
                         }
                     }
 
@@ -101,8 +100,7 @@ namespace picongpu
                             duplicateBuffer->copyFrom(gridBuffer.getDeviceBuffer());
                             restoreFromDuplicateField = true;
                         }
-                        apply(step, pmacc::nvidia::functors::Add(), field);
-                        dc.releaseData(Field::getName());
+                        apply(step, pmacc::math::operation::Add(), field);
                     }
 
                     /** Subtract the field background in the whole local domain
@@ -126,8 +124,7 @@ namespace picongpu
                             restoreFromDuplicateField = false;
                         }
                         else
-                            apply(step, pmacc::nvidia::functors::Sub(), field);
-                        dc.releaseData(Field::getName());
+                            apply(step, pmacc::math::operation::Sub(), field);
                     }
 
                 private:
@@ -151,7 +148,7 @@ namespace picongpu
 
                     /** Apply the given functor to the field background in the whole local domain
                      *
-                     * @tparam T_Functor functor type compatible to pmacc::nvidia::functors
+                     * @tparam T_Functor functor type compatible to pmacc::math::operation
                      *
                      * @param step index of time iteration
                      * @param functor functor to apply

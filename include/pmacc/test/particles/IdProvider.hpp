@@ -21,22 +21,21 @@
 
 #pragma once
 
-#include <pmacc/types.hpp>
-#include <pmacc/particles/IdProvider.hpp>
-#include <pmacc/memory/buffers/HostDeviceBuffer.hpp>
 #include <pmacc/eventSystem/EventSystem.hpp>
-#include <pmacc/mappings/threads/ForEachIdx.hpp>
-#include <pmacc/mappings/threads/IdxConfig.hpp>
+#include <pmacc/lockstep.hpp>
+#include <pmacc/memory/buffers/HostDeviceBuffer.hpp>
+#include <pmacc/particles/IdProvider.hpp>
 #include <pmacc/traits/GetNumWorkers.hpp>
+#include <pmacc/types.hpp>
 
-#include <boost/mpl/list.hpp>
 #include <boost/mpl/for_each.hpp>
 #include <boost/mpl/int.hpp>
+#include <boost/mpl/list.hpp>
+
+#include <algorithm>
+#include <set>
 
 #include <catch2/catch.hpp>
-
-#include <set>
-#include <algorithm>
 #include <stdint.h>
 
 
@@ -59,22 +58,20 @@ namespace pmacc
                     uint32_t numIdsPerThread) const
                 {
                     using namespace ::pmacc;
-                    using namespace mappings::threads;
 
                     constexpr uint32_t numWorkers = T_numWorkers;
 
                     uint32_t const workerIdx = cupla::threadIdx(acc).x;
 
                     uint32_t const blockId = cupla::blockIdx(acc).x * T_numIdsPerBlock;
-                    ForEachIdx<IdxConfig<T_numIdsPerBlock, numWorkers>>{workerIdx}(
-                        [&](uint32_t const linearId, uint32_t const) {
-                            uint32_t const localId = blockId + linearId;
-                            if(localId < numThreads)
-                            {
-                                for(uint32_t i = 0u; i < numIdsPerThread; i++)
-                                    outputbox(i * numThreads + localId) = T_IdProvider::getNewId();
-                            }
-                        });
+                    lockstep::makeForEach<T_numIdsPerBlock, numWorkers>(workerIdx)([&](uint32_t const linearId) {
+                        uint32_t const localId = blockId + linearId;
+                        if(localId < numThreads)
+                        {
+                            for(uint32_t i = 0u; i < numIdsPerThread; i++)
+                                outputbox(i * numThreads + localId) = T_IdProvider::getNewId();
+                        }
+                    });
                 }
             };
 

@@ -23,21 +23,21 @@
 
 #pragma once
 
-#include "pmacc/types.hpp"
-
-#include "pmacc/mappings/simulation/GridController.hpp"
-#include "pmacc/dimensions/DataSpace.hpp"
 #include "TimeInterval.hpp"
-#include "pmacc/dataManagement/DataConnector.hpp"
 #include "pmacc/Environment.hpp"
+#include "pmacc/dataManagement/DataConnector.hpp"
+#include "pmacc/dimensions/DataSpace.hpp"
+#include "pmacc/mappings/simulation/GridController.hpp"
 #include "pmacc/pluginSystem/IPlugin.hpp"
 #include "pmacc/pluginSystem/containsStep.hpp"
 #include "pmacc/pluginSystem/toTimeSlice.hpp"
+#include "pmacc/types.hpp"
 
 #include <boost/filesystem.hpp>
-#include <iostream>
-#include <iomanip>
+
 #include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -82,8 +82,9 @@ namespace pmacc
             tSimulation.toggleEnd();
             if(output)
             {
-                std::cout << "full simulation time: " << tSimulation.printInterval() << " = "
-                          << (uint64_t)(tSimulation.getInterval() / 1000.) << " sec" << std::endl;
+                std::cout << "full simulation time: " << tSimulation.printInterval() << " = " << std::fixed
+                          << std::setprecision(3) << (tSimulation.getInterval() / 1000.)
+                          << std::resetiosflags(std::ios::showbase) << " sec" << std::endl;
             }
         }
 
@@ -229,8 +230,9 @@ namespace pmacc
                 tInit.toggleEnd();
                 if(output)
                 {
-                    std::cout << "initialization time: " << tInit.printInterval() << " = "
-                              << (int) (tInit.getInterval() / 1000.) << " sec" << std::endl;
+                    std::cout << "initialization time: " << tInit.printInterval() << " = " << std::fixed
+                              << std::setprecision(3) << (tInit.getInterval() / 1000.)
+                              << std::resetiosflags(std::ios::showbase) << " sec" << std::endl;
                 }
 
                 TimeIntervall tSimCalculation;
@@ -285,7 +287,8 @@ namespace pmacc
                 if(output)
                 {
                     std::cout << "calculation  simulation time: " << tSimCalculation.printInterval() << " = "
-                              << (int) (tSimCalculation.getInterval() / 1000.) << " sec" << std::endl;
+                              << std::fixed << std::setprecision(3) << (tSimCalculation.getInterval() / 1000.)
+                              << std::resetiosflags(std::ios::showbase) << " sec" << std::endl;
                 }
 
             } // softRestarts loop

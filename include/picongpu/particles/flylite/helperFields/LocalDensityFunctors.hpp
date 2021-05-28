@@ -24,13 +24,13 @@
 #include "picongpu/particles/particleToGrid/ComputeGridValuePerFrame.def"
 
 // pmacc
-#include <pmacc/types.hpp>
-#include <pmacc/static_assert.hpp>
 #include <pmacc/Environment.hpp>
 #include <pmacc/meta/ForEach.hpp>
+#include <pmacc/static_assert.hpp>
+#include <pmacc/types.hpp>
 
-#include <string>
 #include <memory>
+#include <string>
 
 
 namespace picongpu
@@ -71,8 +71,6 @@ namespace picongpu
                             using Density = particleToGrid::
                                 ComputeGridValuePerFrame<ShapeType, particleToGrid::derivedAttributes::Density>;
                             fieldTmp->template computeValue<CORE + BORDER, Density>(*speciesTmp, currentStep);
-
-                            dc.releaseData(FrameType::getName());
                         }
                     };
                 } // namespace detail
@@ -134,10 +132,6 @@ namespace picongpu
                             fieldTmp->getDeviceDataBox().shift(SuperCellSize::toRT() * GuardSize::toRT()),
                             // start in border (has no GUARD area)
                             nlocal->getGridBuffer().getDeviceBuffer().getDataBox());
-
-                        // release fields
-                        dc.releaseData(FieldTmp::getUniqueId(0));
-                        dc.releaseData(helperFields::LocalDensity::getName(speciesGroup));
                     }
                 };
 

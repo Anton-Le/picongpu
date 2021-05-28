@@ -22,18 +22,16 @@
 
 #pragma once
 
-#include "pmacc/types.hpp"
-#include "pmacc/dimensions/DataSpaceOperations.hpp"
-#include "pmacc/math/Vector.hpp"
-#include "pmacc/particles/frame_types.hpp"
-#include "pmacc/nvidia/atomic.hpp"
 #include "pmacc/debug/VerboseLog.hpp"
-#include "pmacc/memory/shared/Allocate.hpp"
+#include "pmacc/dimensions/DataSpaceOperations.hpp"
+#include "pmacc/kernel/atomic.hpp"
+#include "pmacc/lockstep.hpp"
+#include "pmacc/math/Vector.hpp"
 #include "pmacc/memory/Array.hpp"
-#include "pmacc/memory/CtxArray.hpp"
-#include "pmacc/mappings/threads/ForEachIdx.hpp"
-#include "pmacc/mappings/threads/IdxConfig.hpp"
+#include "pmacc/memory/shared/Allocate.hpp"
+#include "pmacc/particles/frame_types.hpp"
 #include "pmacc/traits/GetNumWorkers.hpp"
+#include "pmacc/types.hpp"
 
 namespace pmacc
 {
@@ -41,14 +39,14 @@ namespace pmacc
     {
         namespace operations
         {
-            namespace kernel
+            namespace detail
             {
                 /** transform a large frame into a list of small frames
                  *
                  * @tparam T_numWorkers number of workers
                  */
                 template<uint32_t T_numWorkers>
-                struct SplitIntoListOfFrames
+                struct KernelSplitIntoListOfFrames
                 {
                     /** Copy particles from big frame to PMacc frame structure
                      *  (Opposite to ConcatListOfFrames)
@@ -96,7 +94,6 @@ namespace pmacc
                         T_CellDescription const cellDesc) const
                     {
                         using namespace pmacc::particles::operations;
-                        using namespace mappings::threads;
 
                         using SrcFrameType = T_SrcFrame;
                         using DestFrameType = typename T_DestBox::FrameType;
@@ -116,9 +113,9 @@ namespace pmacc
                         DataSpace<numDims> const numSuperCells(
                             cellDesc.getGridSuperCells() - cellDesc.getGuardingSuperCells() * 2);
 
-                        ForEachIdx<IdxConfig<1, numWorkers>> onlyMaster{workerIdx};
+                        auto onlyMaster = lockstep::makeMaster(workerIdx);
 
-                        onlyMaster([&](uint32_t const, uint32_t const) {
+                        onlyMaster([&]() {
                             /* apply for work for the full block, counter[0] contains the
                              * offset in srcFrame to load N particles
                              */
@@ -131,61 +128,59 @@ namespace pmacc
 
                         cupla::__syncthreads(acc);
 
-                        using ParticleDomCfg = IdxConfig<particlesPerFrame, numWorkers>;
-
-                        memory::CtxArray<int, ParticleDomCfg> srcParticleIdxCtx{};
-
-                        memory::CtxArray<bool, ParticleDomCfg> hasValidParticleCtx{};
-
                         // loop over all particles in the frame
-                        ForEachIdx<ParticleDomCfg> forEachParticle(workerIdx);
+                        auto forEachParticle = lockstep::makeForEach<particlesPerFrame, numWorkers>(workerIdx);
 
-                        forEachParticle([&](uint32_t const linearIdx, uint32_t const idx) {
-                            destFramePtr[linearIdx] = DestFramePtr{};
-                            sharedLinearSuperCellIds[linearIdx] = -1;
+                        auto srcParticleIdxCtx = lockstep::makeVar<int>(forEachParticle);
+                        auto hasValidParticleCtx = lockstep::makeVar<bool>(forEachParticle);
 
-                            srcParticleIdxCtx[idx] = sharedSrcParticleOffset + linearIdx;
+                        forEachParticle([&](lockstep::Idx const idx) {
+                            destFramePtr[idx] = DestFramePtr{};
+                            sharedLinearSuperCellIds[idx] = -1;
+
+                            srcParticleIdxCtx[idx] = sharedSrcParticleOffset + idx;
                             hasValidParticleCtx[idx] = srcParticleIdxCtx[idx] < maxParticles;
                         });
 
                         cupla::__syncthreads(acc);
 
-                        // supercell index of the particle relative to the origin of the local domain
-                        memory::CtxArray<DataSpace<numDims>, ParticleDomCfg> particlesSuperCellCtx{};
-
                         // linear cell index of the particle within the destination frame
-                        memory::CtxArray<lcellId_t, ParticleDomCfg> lCellIdxCtx(INV_LOC_IDX);
+                        auto lCellIdxCtx = lockstep::makeVar<lcellId_t>(forEachParticle, INV_LOC_IDX);
 
-                        memory::CtxArray<int, ParticleDomCfg> linearParticlesSuperCellCtx(-1);
+                        auto linearParticlesSuperCellCtx = lockstep::makeVar<int>(forEachParticle, -1);
 
-                        forEachParticle([&](uint32_t const linearIdx, uint32_t const idx) {
-                            if(hasValidParticleCtx[idx])
-                            {
-                                // offset of the particle relative to the origin of the local domain
-                                DataSpace<numDims> const particleCellOffset
-                                    = srcFrame[srcParticleIdxCtx[idx]][domainCellIdxIdentifier]
-                                    - localDomainCellOffset;
-                                particlesSuperCellCtx[idx] = particleCellOffset / SuperCellSize::toRT();
-                                linearParticlesSuperCellCtx[idx]
-                                    = DataSpaceOperations<numDims>::map(numSuperCells, particlesSuperCellCtx[idx]);
-                                sharedLinearSuperCellIds[linearIdx] = linearParticlesSuperCellCtx[idx];
-                                DataSpace<numDims> const localCellIdx(
-                                    particleCellOffset - particlesSuperCellCtx[idx] * SuperCellSize::toRT());
-                                lCellIdxCtx[idx]
-                                    = DataSpaceOperations<numDims>::template map<SuperCellSize>(localCellIdx);
-                            }
-                        });
+                        // supercell index of the particle relative to the origin of the local domain
+                        auto particlesSuperCellCtx
+                            = forEachParticle([&](lockstep::Idx const idx) -> DataSpace<numDims> {
+                                  DataSpace<numDims> particlesSuperCellIdx;
+                                  if(hasValidParticleCtx[idx])
+                                  {
+                                      // offset of the particle relative to the origin of the local domain
+                                      DataSpace<numDims> const particleCellOffset
+                                          = srcFrame[srcParticleIdxCtx[idx]][domainCellIdxIdentifier]
+                                          - localDomainCellOffset;
+                                      particlesSuperCellIdx = particleCellOffset / SuperCellSize::toRT();
+                                      linearParticlesSuperCellCtx[idx]
+                                          = DataSpaceOperations<numDims>::map(numSuperCells, particlesSuperCellIdx);
+                                      sharedLinearSuperCellIds[idx] = linearParticlesSuperCellCtx[idx];
+                                      DataSpace<numDims> const localCellIdx(
+                                          particleCellOffset - particlesSuperCellIdx * SuperCellSize::toRT());
+                                      lCellIdxCtx[idx]
+                                          = DataSpaceOperations<numDims>::template map<SuperCellSize>(localCellIdx);
+                                  }
+                                  return particlesSuperCellIdx;
+                              });
 
                         cupla::__syncthreads(acc);
 
-                        memory::CtxArray<int, ParticleDomCfg> masterVirtualThreadIdxCtx(
-                            workerIdx,
-                            [&](uint32_t const linearIdx, uint32_t const) { return linearIdx - 1; });
+                        // auto masterVirtualThreadIdxCtx
+                        //     = forEachParticle([&](uint32_t const linearIdx) -> int { return linearIdx - 1; });
 
-                        forEachParticle([&](uint32_t const linearIdx, uint32_t const idx) {
+                        auto masterVirtualThreadIdxCtx = forEachParticle([&](lockstep::Idx const idx) -> int {
+                            int vThreadMasterIdx = static_cast<int>(idx) - 1;
                             if(hasValidParticleCtx[idx])
                             {
-                                auto& vThreadMasterIdx = masterVirtualThreadIdxCtx[idx];
+                                // auto& vThreadMasterIdx = masterVirtualThreadIdxCtx[idx];
                                 /* search master thread index */
                                 while(vThreadMasterIdx >= 0)
                                 {
@@ -197,27 +192,28 @@ namespace pmacc
                                 ++vThreadMasterIdx;
 
                                 // load empty frame if virtual thread is the master
-                                if(vThreadMasterIdx == linearIdx)
+                                if(vThreadMasterIdx == idx)
                                 {
                                     /* counter[2] -> number of used frames */
-                                    nvidia::atomicAllInc(acc, &(counter[2]), ::alpaka::hierarchy::Blocks{});
+                                    kernel::atomicAllInc(acc, &(counter[2]), ::alpaka::hierarchy::Blocks{});
                                     DestFramePtr tmpFrame = destBox.getEmptyFrame(acc);
-                                    destFramePtr[linearIdx] = tmpFrame;
+                                    destFramePtr[idx] = tmpFrame;
                                     destBox.setAsFirstFrame(
                                         acc,
                                         tmpFrame,
                                         particlesSuperCellCtx[idx] + cellDesc.getGuardingSuperCells());
                                 }
                             }
+                            return vThreadMasterIdx;
                         });
 
                         cupla::__syncthreads(acc);
 
-                        forEachParticle([&](uint32_t const linearIdx, uint32_t const idx) {
+                        forEachParticle([&](lockstep::Idx const idx) {
                             if(hasValidParticleCtx[idx])
                             {
                                 /* copy attributes and activate particle*/
-                                auto parDest = destFramePtr[masterVirtualThreadIdxCtx[idx]][linearIdx];
+                                auto parDest = destFramePtr[masterVirtualThreadIdxCtx[idx]][idx];
                                 auto parDestDeselect = deselect<bmpl::vector2<localCellIdx, multiMask>>(parDest);
 
                                 assign(parDestDeselect, srcFrame[srcParticleIdxCtx[idx]]);
@@ -226,12 +222,12 @@ namespace pmacc
                                 /* counter[1] -> number of loaded particles
                                  * this counter is evaluated on host side
                                  * (check that loaded particles by this kernel == loaded particles from HDF5 file)*/
-                                nvidia::atomicAllInc(acc, &(counter[1]), ::alpaka::hierarchy::Blocks{});
+                                kernel::atomicAllInc(acc, &(counter[1]), ::alpaka::hierarchy::Blocks{});
                             }
                         });
                     }
                 };
-            } // namespace kernel
+            } // namespace detail
 
             /** Copy particles from big frame to PMacc frame structure
              *  (Opposite to ConcatListOfFrames)
@@ -301,7 +297,7 @@ namespace pmacc
                     constexpr uint32_t numWorkers
                         = pmacc::traits::GetNumWorkers<pmacc::math::CT::volume<SuperCellSize>::type::value>::value;
 
-                    PMACC_KERNEL(kernel::SplitIntoListOfFrames<numWorkers>{})
+                    PMACC_KERNEL(detail::KernelSplitIntoListOfFrames<numWorkers>{})
                     (math::float2int_ru(double(currentChunkSize) / double(cellsInSuperCell)), numWorkers)(
                         counterBuffer.getDeviceBuffer().getDataBox(),
                         destSpecies.getDeviceParticlesBox(),

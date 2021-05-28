@@ -22,24 +22,22 @@
 
 #include "picongpu/simulation_defines.hpp"
 
+#include "common/txtFileHandling.hpp"
 #include "picongpu/fields/FieldB.hpp"
 #include "picongpu/fields/FieldE.hpp"
-
 #include "picongpu/plugins/ISimulationPlugin.hpp"
 
-#include <pmacc/mpi/reduceMethods/Reduce.hpp>
-#include <pmacc/mpi/MPIReduce.hpp>
-#include <pmacc/nvidia/functors/Add.hpp>
-#include <pmacc/nvidia/reduce/Reduce.hpp>
+#include <pmacc/dataManagement/DataConnector.hpp>
+#include <pmacc/device/Reduce.hpp>
+#include <pmacc/dimensions/DataSpaceOperations.hpp>
+#include <pmacc/math/operation.hpp>
 #include <pmacc/memory/boxes/DataBoxDim1Access.hpp>
 #include <pmacc/memory/boxes/DataBoxUnaryTransform.hpp>
-#include <pmacc/dataManagement/DataConnector.hpp>
-#include <pmacc/dimensions/DataSpaceOperations.hpp>
+#include <pmacc/mpi/MPIReduce.hpp>
+#include <pmacc/mpi/reduceMethods/Reduce.hpp>
 
-#include "common/txtFileHandling.hpp"
-
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <memory>
 
 
@@ -90,7 +88,7 @@ namespace picongpu
 
         mpi::MPIReduce mpiReduce;
 
-        nvidia::reduce::Reduce* localReduce;
+        pmacc::device::Reduce* localReduce;
 
         typedef promoteType<float_64, FieldB::ValueType>::type EneVectorType;
 
@@ -138,7 +136,7 @@ namespace picongpu
         {
             if(!notifyPeriod.empty())
             {
-                localReduce = new nvidia::reduce::Reduce(1024);
+                localReduce = new pmacc::device::Reduce(1024);
                 writeToFile = mpiReduce.hasResult(mpi::reduceMethods::Reduce());
 
                 if(writeToFile)
@@ -209,7 +207,7 @@ namespace picongpu
             localReducedFieldEnergy[1] = reduceField(fieldE);
 
             mpiReduce(
-                nvidia::functors::Add(),
+                pmacc::math::operation::Add(),
                 globalFieldEnergy,
                 localReducedFieldEnergy,
                 2,
@@ -263,7 +261,7 @@ namespace picongpu
             D1Box d1Access(field64bit, fieldSize);
 
             EneVectorType fieldEnergyReduced
-                = (*localReduce)(nvidia::functors::Add(), d1Access, fieldSize.productOfComponents());
+                = (*localReduce)(pmacc::math::operation::Add(), d1Access, fieldSize.productOfComponents());
 
             return fieldEnergyReduced;
         }

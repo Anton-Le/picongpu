@@ -24,37 +24,30 @@
 
 #include "picongpu/simulation_defines.hpp"
 
-#include <pmacc/dimensions/DataSpaceOperations.hpp>
-#include <pmacc/mappings/kernel/AreaMapping.hpp>
-
-
+#include "picongpu/plugins/radiation/GetRadiationMask.hpp"
 #include "picongpu/plugins/radiation/VectorTypes.hpp"
-#include "picongpu/plugins/radiation/check_consistency.hpp"
-#include "picongpu/plugins/radiation/particle.hpp"
 #include "picongpu/plugins/radiation/amplitude.hpp"
 #include "picongpu/plugins/radiation/calc_amplitude.hpp"
-#include "picongpu/plugins/radiation/windowFunctions.hpp"
-#include "picongpu/plugins/radiation/GetRadiationMask.hpp"
-
-#include <pmacc/mpi/reduceMethods/Reduce.hpp>
-#include <pmacc/mpi/MPIReduce.hpp>
-#include <pmacc/nvidia/functors/Add.hpp>
-#include <pmacc/nvidia/atomic.hpp>
-#include <pmacc/memory/shared/Allocate.hpp>
-#include <pmacc/memory/Array.hpp>
-#include <pmacc/mappings/threads/ForEachIdx.hpp>
-#include <pmacc/mappings/threads/IdxConfig.hpp>
-
-
+#include "picongpu/plugins/radiation/check_consistency.hpp"
 #include "picongpu/plugins/radiation/nyquist_low_pass.hpp"
-
+#include "picongpu/plugins/radiation/particle.hpp"
 #include "picongpu/plugins/radiation/radFormFactor.hpp"
+#include "picongpu/plugins/radiation/windowFunctions.hpp"
 #include "sys/stat.h"
 
-#include <string>
-#include <iostream>
-#include <fstream>
+#include <pmacc/dimensions/DataSpaceOperations.hpp>
+#include <pmacc/kernel/atomic.hpp>
+#include <pmacc/lockstep.hpp>
+#include <pmacc/mappings/kernel/AreaMapping.hpp>
+#include <pmacc/memory/Array.hpp>
+#include <pmacc/memory/shared/Allocate.hpp>
+#include <pmacc/mpi/MPIReduce.hpp>
+#include <pmacc/mpi/reduceMethods/Reduce.hpp>
+
 #include <cstdlib>
+#include <fstream>
+#include <iostream>
+#include <string>
 
 namespace picongpu
 {
@@ -112,7 +105,6 @@ namespace picongpu
                         radiation_frequencies::FreqFunctor freqFkt,
                         DataSpace<simDim> simBoxSize) const
                 {
-                    using namespace mappings::threads;
                     namespace po = boost::program_options;
                     using Amplitude = picongpu::plugins::radiation::Amplitude<>;
                     constexpr uint32_t frameSize = pmacc::math::CT::volume<SuperCellSize>::type::value;
@@ -208,23 +200,21 @@ namespace picongpu
                              */
                             cupla::__syncthreads(acc);
 
-                            ForEachIdx<IdxConfig<1, numWorker>> onlyMaster{workerIdx};
+                            auto onlyMaster = lockstep::makeMaster(workerIdx);
 
                             /* The Master process (thread 0) in every thread block is in
                              * charge of loading a frame from
                              * the current super cell and evaluate the total number of
                              * particles in this frame.
                              */
-                            onlyMaster([&](uint32_t const, uint32_t const) { counter_s = 0; });
+                            onlyMaster([&]() { counter_s = 0; });
 
                             cupla::__syncthreads(acc);
 
-                            using ParticleDomCfg = IdxConfig<frameSize, numWorker>;
-
                             // loop over all particles in the frame
-                            ForEachIdx<ParticleDomCfg> forEachParticle{workerIdx};
+                            auto forEachParticle = lockstep::makeForEach<frameSize, numWorker>(workerIdx);
 
-                            forEachParticle([&](uint32_t const linearIdx, uint32_t const) {
+                            forEachParticle([&](uint32_t const linearIdx) {
                                 // only threads with particles are running
                                 if(linearIdx < particlesInFrame)
                                 {
@@ -248,7 +238,7 @@ namespace picongpu
                                     if(particle_momentumNow != particle_momentumOld)
                                     {
                                         if(getRadiationMask(par))
-                                            saveParticleAt = nvidia::atomicAllInc(
+                                            saveParticleAt = kernel::atomicAllInc(
                                                 acc,
                                                 &counter_s,
                                                 ::alpaka::hierarchy::Threads{});

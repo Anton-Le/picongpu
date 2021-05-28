@@ -22,12 +22,11 @@
 
 #pragma once
 
+#include "pmacc/dimensions/DataSpace.hpp"
 #include "pmacc/eventSystem/EventSystem.hpp"
+#include "pmacc/eventSystem/events/kernelEvents.hpp"
 #include "pmacc/eventSystem/streams/EventStream.hpp"
 #include "pmacc/eventSystem/tasks/StreamTask.hpp"
-#include "pmacc/eventSystem/events/kernelEvents.hpp"
-#include "pmacc/dimensions/DataSpace.hpp"
-#include "pmacc/nvidia/gpuEntryFunction.hpp"
 
 
 namespace pmacc

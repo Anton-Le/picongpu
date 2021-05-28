@@ -20,23 +20,23 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
-#include <pmacc/traits/Resolve.hpp>
-#include <pmacc/particles/meta/FindByNameOrType.hpp>
 
 #include "picongpu/fields/CellType.hpp"
 #include "picongpu/fields/FieldTmp.hpp"
-
-#include "picongpu/particles/ionization/byCollision/ThomasFermi/ThomasFermi.def"
 #include "picongpu/particles/ionization/byCollision/ThomasFermi/AlgorithmThomasFermi.hpp"
+#include "picongpu/particles/ionization/byCollision/ThomasFermi/ThomasFermi.def"
 
-#include <pmacc/random/methods/methods.hpp>
-#include <pmacc/random/distributions/Uniform.hpp>
-#include <pmacc/random/RNGProvider.hpp>
 #include <pmacc/dataManagement/DataConnector.hpp>
-#include <pmacc/meta/conversion/TypeToPointerPair.hpp>
-#include <pmacc/memory/boxes/DataBox.hpp>
+#include <pmacc/lockstep/Worker.hpp>
 #include <pmacc/mappings/kernel/AreaMapping.hpp>
-#include <pmacc/mappings/threads/WorkerCfg.hpp>
+#include <pmacc/math/operation.hpp>
+#include <pmacc/memory/boxes/DataBox.hpp>
+#include <pmacc/meta/conversion/TypeToPointerPair.hpp>
+#include <pmacc/particles/meta/FindByNameOrType.hpp>
+#include <pmacc/random/RNGProvider.hpp>
+#include <pmacc/random/distributions/Uniform.hpp>
+#include <pmacc/random/methods/methods.hpp>
+#include <pmacc/traits/Resolve.hpp>
 
 #include <boost/type_traits/integral_constant.hpp>
 
@@ -146,7 +146,7 @@ namespace picongpu
                     using DensitySolver = typename particleToGrid::
                         CreateFieldTmpOperation_t<SrcSpecies, particleToGrid::derivedAttributes::Density>::Solver;
                     density->template computeValue<CORE + BORDER, DensitySolver>(*srcSpecies, currentStep);
-                    dc.releaseData(SrcSpecies::FrameType::getName());
+
                     EventTask densityEvent = density->asyncCommunication(__getTransactionEvent());
                     densityEvent += density->asyncCommunicationGather(densityEvent);
 
@@ -162,7 +162,6 @@ namespace picongpu
                         DestSpecies,
                         particleToGrid::derivedAttributes::EnergyDensityCutoff<CutoffMaxEnergy>>::Solver;
                     eneKinDens->template computeValue<CORE + BORDER, EnergyDensitySolver>(*destSpecies, currentStep);
-                    dc.releaseData(DestSpecies::FrameType::getName());
                     EventTask eneKinEvent = eneKinDens->asyncCommunication(__getTransactionEvent());
                     eneKinEvent += eneKinDens->asyncCommunicationGather(eneKinEvent);
 
@@ -179,7 +178,7 @@ namespace picongpu
                  * @warning this is a collective method and calls synchronize
                  *
                  * @tparam T_Acc alpaka accelerator type
-                 * @tparam T_WorkerCfg pmacc::mappings::threads::WorkerCfg, configuration of the worker
+                 * @tparam T_WorkerCfg lockstep::Worker, configuration of the worker
                  *
                  * @param acc alpaka accelerator
                  * @param blockCell relative offset (in cells) to the local domain plus the guarding cells
@@ -196,7 +195,7 @@ namespace picongpu
                     cachedEne = CachedBox::create<1, ValueType_Ene>(acc, BlockArea());
 
                     /* instance of nvidia assignment operator */
-                    nvidia::functors::Assign assign;
+                    pmacc::math::operation::Assign assign;
                     /* copy fields from global to shared */
                     auto fieldRhoBlock = rhoBox.shift(blockCell);
                     ThreadCollective<BlockArea, T_WorkerCfg::numWorkers> collective(workerCfg.getWorkerIdx());

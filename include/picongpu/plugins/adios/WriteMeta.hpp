@@ -20,19 +20,18 @@
 #pragma once
 #include "picongpu/simulation_defines.hpp"
 
-#include "picongpu/plugins/adios/ADIOSWriter.def"
-#include "picongpu/plugins/common/stringHelpers.hpp"
-#include <pmacc/Environment.hpp>
-
 #include "picongpu/fields/absorber/Absorber.hpp"
 #include "picongpu/fields/currentInterpolation/CurrentInterpolation.hpp"
-
-#include "picongpu/traits/SIBaseUnits.hpp"
+#include "picongpu/plugins/adios/ADIOSWriter.def"
+#include "picongpu/plugins/common/stringHelpers.hpp"
 #include "picongpu/traits/PICToAdios.hpp"
+#include "picongpu/traits/SIBaseUnits.hpp"
 
-#include <string>
-#include <sstream>
+#include <pmacc/Environment.hpp>
+
 #include <list>
+#include <sstream>
+#include <string>
 
 
 namespace picongpu
@@ -259,7 +258,8 @@ namespace picongpu
                  *    3D: z-lower, z-upper, y-lower, y-upper, x-lower, x-upper
                  *    2D: y-lower, y-upper, x-lower, x-upper
                  */
-                GetStringProperties<fields::absorber::Absorber> fieldBoundaryProp;
+                auto& absorber = fields::absorber::Absorber::get();
+                auto fieldBoundaryProp = absorber.getStringProperties();
                 std::list<std::string> listFieldBoundary;
                 std::list<std::string> listFieldBoundaryParam;
                 for(uint32_t i = NumberOfExchanges<simDim>::value - 1; i > 0; --i)

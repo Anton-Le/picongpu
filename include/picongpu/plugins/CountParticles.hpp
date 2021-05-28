@@ -21,25 +21,21 @@
 
 #include "picongpu/simulation_defines.hpp"
 
-#include <pmacc/mappings/kernel/AreaMapping.hpp>
-
-#include "picongpu/plugins/ISimulationPlugin.hpp"
+#include "common/txtFileHandling.hpp"
 #include "picongpu/particles/filter/filter.hpp"
+#include "picongpu/plugins/ISimulationPlugin.hpp"
 
-#include <pmacc/mpi/reduceMethods/Reduce.hpp>
-#include <pmacc/mpi/MPIReduce.hpp>
-#include <pmacc/nvidia/functors/Add.hpp>
-#include <pmacc/nvidia/functors/Max.hpp>
 #include <pmacc/dataManagement/DataConnector.hpp>
-
+#include <pmacc/mappings/kernel/AreaMapping.hpp>
+#include <pmacc/math/operation.hpp>
+#include <pmacc/mpi/MPIReduce.hpp>
+#include <pmacc/mpi/reduceMethods/Reduce.hpp>
 #include <pmacc/particles/operations/CountParticles.hpp>
 
-#include "common/txtFileHandling.hpp"
-
-#include <string>
-#include <iostream>
-#include <iomanip>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <string>
 
 
 namespace picongpu
@@ -180,17 +176,16 @@ namespace picongpu
                 DataSpace<simDim>(),
                 localSize,
                 parFilter);
-            dc.releaseData(ParticlesType::FrameType::getName());
 
             uint64_cu reducedValueMax;
             if(picLog::log_level & picLog::CRITICAL::lvl)
             {
-                reduce(nvidia::functors::Max(), &reducedValueMax, &size, 1, mpi::reduceMethods::Reduce());
+                reduce(pmacc::math::operation::Max(), &reducedValueMax, &size, 1, mpi::reduceMethods::Reduce());
             }
 
 
             uint64_cu reducedValue;
-            reduce(nvidia::functors::Add(), &reducedValue, &size, 1, mpi::reduceMethods::Reduce());
+            reduce(pmacc::math::operation::Add(), &reducedValue, &size, 1, mpi::reduceMethods::Reduce());
 
             if(writeToFile)
             {

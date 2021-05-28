@@ -19,38 +19,38 @@
 
 #pragma once
 
-#include "ParticleCalorimeterFunctors.hpp"
 #include "ParticleCalorimeter.kernel"
-
-#include "picongpu/traits/PICToSplash.hpp"
+#include "ParticleCalorimeterFunctors.hpp"
 #include "picongpu/particles/traits/SpeciesEligibleForSolver.hpp"
-#include "picongpu/plugins/multi/multi.hpp"
 #include "picongpu/plugins/misc/misc.hpp"
+#include "picongpu/plugins/multi/multi.hpp"
+#include "picongpu/traits/PICToSplash.hpp"
 
-#include <pmacc/cuSTL/container/DeviceBuffer.hpp>
-#include <pmacc/cuSTL/container/HostBuffer.hpp>
-#include <pmacc/cuSTL/algorithm/kernel/Foreach.hpp>
-#include <pmacc/cuSTL/cursor/MultiIndexCursor.hpp>
-#include <pmacc/cuSTL/algorithm/mpi/Reduce.hpp>
-#include <pmacc/cuSTL/algorithm/host/Foreach.hpp>
-#include <pmacc/particles/policies/ExchangeParticles.hpp>
-#include <pmacc/dataManagement/DataConnector.hpp>
-#include <pmacc/math/Vector.hpp>
 #include <pmacc/algorithms/math.hpp>
 #include <pmacc/cuSTL/algorithm/functor/Add.hpp>
-#include <pmacc/traits/GetNumWorkers.hpp>
+#include <pmacc/cuSTL/algorithm/host/Foreach.hpp>
+#include <pmacc/cuSTL/algorithm/kernel/Foreach.hpp>
+#include <pmacc/cuSTL/algorithm/mpi/Reduce.hpp>
+#include <pmacc/cuSTL/container/DeviceBuffer.hpp>
+#include <pmacc/cuSTL/container/HostBuffer.hpp>
+#include <pmacc/cuSTL/cursor/MultiIndexCursor.hpp>
+#include <pmacc/dataManagement/DataConnector.hpp>
 #include <pmacc/mappings/kernel/AreaMapping.hpp>
-#include <pmacc/traits/HasIdentifiers.hpp>
+#include <pmacc/math/Vector.hpp>
+#include <pmacc/particles/policies/ExchangeParticles.hpp>
+#include <pmacc/traits/GetNumWorkers.hpp>
 #include <pmacc/traits/HasFlag.hpp>
+#include <pmacc/traits/HasIdentifiers.hpp>
 
-#include <splash/splash.h>
 #include <boost/filesystem.hpp>
 #include <boost/mpl/and.hpp>
 #include <boost/shared_ptr.hpp>
 
-#include <string>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <string>
+
+#include <splash/splash.h>
 #include <stdlib.h>
 
 
@@ -518,6 +518,7 @@ namespace picongpu
             openingPitch_deg = m_help->openingPitch.get(m_id);
             posYaw_deg = m_help->posYaw.get(m_id);
             posPitch_deg = m_help->posPitch.get(m_id);
+            notifyPeriod = m_help->notifyPeriod.get(m_id);
 
             initPlugin();
         }
@@ -562,8 +563,6 @@ namespace picongpu
                 currentStep,
                 unaryKernel);
 
-            dc.releaseData(ParticlesType::FrameType::getName());
-
             /* copy to host */
             *this->hBufCalorimeter = *this->dBufCalorimeter;
 
@@ -588,7 +587,7 @@ namespace picongpu
             /* data is written to dBufLeftParsCalorimeter */
             this->calorimeterFunctor->setCalorimeterCursor(this->dBufLeftParsCalorimeter->origin());
 
-            ExchangeMapping<GUARD, MappingDesc> mapper(*this->cellDescription, direction);
+            ExchangeMapping<GUARD, MappingDesc> mapper(*this->m_cellDescription, direction);
             auto grid = mapper.getGridDim();
 
             DataConnector& dc = Environment<>::get().DataConnector();
@@ -609,8 +608,6 @@ namespace picongpu
                 m_help->filter.get(m_id),
                 Environment<>::get().SimulationDescription().getCurrentStep(),
                 unaryKernel);
-
-            dc.releaseData(speciesName);
         }
 
     private:
@@ -621,6 +618,7 @@ namespace picongpu
         MappingDesc* m_cellDescription;
         std::ofstream outFile;
         const std::string leftParticlesDatasetName;
+        std::string notifyPeriod;
 
         uint32_t numBinsYaw;
         uint32_t numBinsPitch;

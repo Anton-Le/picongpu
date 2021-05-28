@@ -20,24 +20,25 @@
  */
 
 #include <pmacc/boost_workaround.hpp>
-#include <pmacc/types.hpp>
+
+#include <pmacc/Environment.hpp>
+#include <pmacc/assert.hpp>
+#include <pmacc/dataManagement/ISimulationData.hpp>
+#include <pmacc/dimensions/DataSpace.hpp>
+#include <pmacc/eventSystem/tasks/ITask.hpp>
+#include <pmacc/lockstep.hpp>
 #include <pmacc/memory/buffers/HostDeviceBuffer.hpp>
 #include <pmacc/random/RNGProvider.hpp>
 #include <pmacc/random/distributions/Uniform.hpp>
 #include <pmacc/random/methods/AlpakaRand.hpp>
-#include <pmacc/dimensions/DataSpace.hpp>
-#include <pmacc/assert.hpp>
-#include <pmacc/mappings/threads/ForEachIdx.hpp>
-#include <pmacc/mappings/threads/IdxConfig.hpp>
 #include <pmacc/traits/GetNumWorkers.hpp>
-#include <pmacc/dataManagement/ISimulationData.hpp>
-#include <pmacc/Environment.hpp>
-#include <pmacc/eventSystem/tasks/ITask.hpp>
+#include <pmacc/types.hpp>
+
+#include <fstream>
+#include <iostream>
+#include <limits>
 
 #include <stdint.h>
-#include <iostream>
-#include <fstream>
-#include <limits>
 
 
 namespace pmacc
@@ -60,17 +61,13 @@ namespace pmacc
                     T_Random const rand,
                     uint32_t const numSamples) const
                 {
-                    using namespace pmacc::mappings::threads;
-
                     constexpr uint32_t numWorkers = T_numWorkers;
                     uint32_t const workerIdx = cupla::threadIdx(acc).x;
 
-                    using SupercellDomCfg = IdxConfig<T_blockSize, numWorkers>;
-
                     // each virtual worker initialize one rng state
-                    ForEachIdx<SupercellDomCfg> forEachCell(workerIdx);
+                    auto forEachCell = lockstep::makeForEach<T_blockSize, numWorkers>(workerIdx);
 
-                    forEachCell([&](uint32_t const linearIdx, uint32_t const) {
+                    forEachCell([&](uint32_t const linearIdx) {
                         uint32_t const linearTid = cupla::blockIdx(acc).x * T_blockSize + linearIdx;
 
                         if(linearTid >= boxSize.productOfComponents())
@@ -90,12 +87,12 @@ namespace pmacc
             };
 
             template<class T_RNGProvider>
-            struct GetRandomIdx
+            struct GetRanidx
             {
                 typedef pmacc::random::distributions::Uniform<float> Distribution;
                 typedef typename T_RNGProvider::template GetRandomType<Distribution>::type Random;
 
-                HINLINE GetRandomIdx() : rand(T_RNGProvider::template createRandom<Distribution>())
+                HINLINE GetRanidx() : rand(T_RNGProvider::template createRandom<Distribution>())
                 {
                 }
 
@@ -230,7 +227,7 @@ namespace pmacc
                     std::shared_ptr<pmacc::ISimulationData>(rngProvider));
                 rngProvider->init(0x42133742);
 
-                generateRandomNumbers(rngSize, numSamples, detector.getDeviceBuffer(), GetRandomIdx<RNGProvider>());
+                generateRandomNumbers(rngSize, numSamples, detector.getDeviceBuffer(), GetRanidx<RNGProvider>());
 
                 detector.deviceToHost();
                 auto box = detector.getHostBuffer().getDataBox();

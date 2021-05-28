@@ -21,15 +21,16 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/particles/traits/GetSpeciesFlagName.hpp"
 #include "picongpu/plugins/ISimulationPlugin.hpp"
+#include "picongpu/plugins/common/openPMDVersion.def"
 #include "picongpu/plugins/kernel/CopySpecies.kernel"
-#include "picongpu/plugins/openPMD/openPMDWriter.def"
-#include "picongpu/plugins/openPMD/openPMDVersion.def"
-#include "picongpu/plugins/openPMD/writer/ParticleAttribute.hpp"
-#include "picongpu/plugins/output/WriteSpeciesCommon.hpp"
-#include "picongpu/plugins/output/ConstSpeciesAttributes.hpp"
 #include "picongpu/plugins/openPMD/openPMDDimension.hpp"
+#include "picongpu/plugins/openPMD/openPMDWriter.def"
+#include "picongpu/plugins/openPMD/writer/ParticleAttribute.hpp"
+#include "picongpu/plugins/output/ConstSpeciesAttributes.hpp"
+#include "picongpu/plugins/output/WriteSpeciesCommon.hpp"
 
 #include <pmacc/assert.hpp>
 #include <pmacc/dataManagement/DataConnector.hpp>
@@ -38,11 +39,10 @@
 #include <pmacc/meta/conversion/MakeSeq.hpp>
 #include <pmacc/meta/conversion/RemoveFromSeq.hpp>
 #include <pmacc/particles/ParticleDescription.hpp>
+#include <pmacc/particles/memory/buffers/MallocMCBuffer.hpp>
 #include <pmacc/particles/operations/ConcatListOfFrames.hpp>
 #include <pmacc/particles/particleFilter/FilterFactory.hpp>
 #include <pmacc/particles/particleFilter/PositionFilter.hpp>
-#include <pmacc/particles/memory/buffers/MallocMCBuffer.hpp>
-
 
 #include <boost/mpl/at.hpp>
 #include <boost/mpl/begin_end.hpp>
@@ -85,7 +85,7 @@ namespace picongpu
                 , filter(c_filter)
                 , particleFilter(c_particleFilter)
                 , particleOffset(c_particleOffset)
-                , myNumParticles(c_globalNumParticles)
+                , myNumParticles(c_myNumParticles)
                 , globalNumParticles(c_globalNumParticles)
             {
             }
@@ -130,15 +130,15 @@ namespace picongpu
                 log<picLog::INPUT_OUTPUT>("openPMD:   (begin) copy particle host (with hierarchy) to "
                                           "host (without hierarchy): %1%")
                     % name;
-                auto mallocMCBuffer
-                    = rp.dc.template get<MallocMCBuffer<DeviceHeap>>(MallocMCBuffer<DeviceHeap>::getName(), true);
 
-                int globalParticleOffset = 0;
+                int particlesProcessed = 0;
                 AreaMapping<CORE + BORDER, MappingDesc> mapper(*(rp.params.cellDescription));
 
                 pmacc::particles::operations::ConcatListOfFrames<simDim> concatListOfFrames(mapper.getGridDim());
 
 #if(PMACC_CUDA_ENABLED == 1 || ALPAKA_ACC_GPU_HIP_ENABLED == 1)
+                auto mallocMCBuffer
+                    = rp.dc.template get<MallocMCBuffer<DeviceHeap>>(MallocMCBuffer<DeviceHeap>::getName(), true);
                 auto particlesBox = rp.speciesTmp->getHostParticlesBox(mallocMCBuffer->getOffset());
 #else
                 /* This separate code path is only a workaround until
@@ -157,7 +157,7 @@ namespace picongpu
 
 #endif
                 concatListOfFrames(
-                    globalParticleOffset,
+                    particlesProcessed,
                     hostFrame,
                     particlesBox,
                     rp.filter,
@@ -167,11 +167,10 @@ namespace picongpu
                     mapper,
                     rp.particleFilter);
 
-                rp.dc.releaseData(MallocMCBuffer<DeviceHeap>::getName());
 
                 /* this costs a little bit of time but writing to external is
                  * slower in general */
-                PMACC_ASSERT((uint64_cu) globalParticleOffset == rp.globalNumParticles);
+                PMACC_VERIFY((uint64_cu) particlesProcessed == rp.myNumParticles);
             }
         };
 
@@ -230,7 +229,7 @@ namespace picongpu
                 __getTransactionEvent().waitForFinished();
                 log<picLog::INPUT_OUTPUT>("openPMD:  all events are finished: %1%") % name;
 
-                PMACC_ASSERT((uint64_t) counterBuffer.getHostBuffer().getDataBox()[0] == rp.myNumParticles);
+                PMACC_VERIFY((uint64_t) counterBuffer.getHostBuffer().getDataBox()[0] == rp.myNumParticles);
             }
         };
 

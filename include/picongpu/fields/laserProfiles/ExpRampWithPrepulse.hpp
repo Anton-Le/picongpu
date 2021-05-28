@@ -21,8 +21,8 @@
 
 #include "picongpu/simulation_defines.hpp"
 
-#include <pmacc/mappings/simulation/SubGrid.hpp>
 #include <pmacc/dataManagement/DataConnector.hpp>
+#include <pmacc/mappings/simulation/SubGrid.hpp>
 
 
 namespace picongpu
@@ -345,7 +345,7 @@ namespace picongpu
 
                 /** create device manipulator functor
                  *
-                 * @tparam T_WorkerCfg pmacc::mappings::threads::WorkerCfg, configuration of the worker
+                 * @tparam T_WorkerCfg lockstep::Worker, configuration of the worker
                  * @tparam T_Acc alpaka accelerator type
                  *
                  * @param alpaka accelerator

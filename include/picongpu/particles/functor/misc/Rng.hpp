@@ -20,16 +20,17 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/particles/functor/misc/RngWrapper.hpp"
 
 #include <pmacc/mpi/SeedPerRank.hpp>
-#include <pmacc/traits/GetUniqueTypeId.hpp>
-#include <pmacc/random/methods/methods.hpp>
 #include <pmacc/random/RNGProvider.hpp>
+#include <pmacc/random/methods/methods.hpp>
+#include <pmacc/traits/GetUniqueTypeId.hpp>
 
-#include <utility>
-#include <type_traits>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 
 namespace picongpu
@@ -63,7 +64,7 @@ namespace picongpu
 
                     /** create functor a random number generator
                      *
-                     * @tparam T_WorkerCfg pmacc::mappings::threads::WorkerCfg, configuration of the worker
+                     * @tparam T_WorkerCfg lockstep::Worker, configuration of the worker
                      * @tparam T_Acc alpaka accelerator type
                      *
                      * @param alpaka accelerator

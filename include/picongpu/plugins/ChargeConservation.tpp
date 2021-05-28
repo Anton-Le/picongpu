@@ -19,29 +19,26 @@
 
 #pragma once
 
-#include <pmacc/static_assert.hpp>
-
+#include "common/txtFileHandling.hpp"
 #include "picongpu/fields/FieldJ.hpp"
 
-#include <pmacc/math/vector/Int.hpp>
-#include <pmacc/math/vector/Float.hpp>
-#include <pmacc/math/vector/Size_t.hpp>
-#include <pmacc/dataManagement/DataConnector.hpp>
-#include <pmacc/math/Vector.hpp>
+#include <pmacc/cuSTL/algorithm/host/Foreach.hpp>
+#include <pmacc/cuSTL/algorithm/kernel/Foreach.hpp>
+#include <pmacc/cuSTL/algorithm/kernel/Reduce.hpp>
+#include <pmacc/cuSTL/algorithm/mpi/Gather.hpp>
 #include <pmacc/cuSTL/container/DeviceBuffer.hpp>
 #include <pmacc/cuSTL/container/HostBuffer.hpp>
 #include <pmacc/cuSTL/container/PseudoBuffer.hpp>
 #include <pmacc/cuSTL/cursor/NestedCursor.hpp>
-#include <pmacc/cuSTL/algorithm/kernel/Foreach.hpp>
-#include <pmacc/cuSTL/algorithm/host/Foreach.hpp>
-#include <pmacc/cuSTL/algorithm/mpi/Gather.hpp>
-#include <pmacc/cuSTL/algorithm/kernel/Reduce.hpp>
+#include <pmacc/dataManagement/DataConnector.hpp>
+#include <pmacc/math/Vector.hpp>
+#include <pmacc/math/operation.hpp>
+#include <pmacc/math/vector/Float.hpp>
+#include <pmacc/math/vector/Int.hpp>
+#include <pmacc/math/vector/Size_t.hpp>
 #include <pmacc/meta/ForEach.hpp>
-#include <pmacc/nvidia/functors/Add.hpp>
 #include <pmacc/particles/meta/FindByNameOrType.hpp>
-#include <pmacc/meta/ForEach.hpp>
-
-#include "common/txtFileHandling.hpp"
+#include <pmacc/static_assert.hpp>
 
 #include <sstream>
 
@@ -181,7 +178,6 @@ namespace picongpu
                     particles::particleToGrid::derivedAttributes::ChargeDensity>::Solver;
 
                 fieldTmp->computeValue<area, ChargeDensitySolver>(*speciesTmp, currentStep);
-                dc.releaseData(SpeciesType::FrameType::getName());
             }
         };
 
@@ -254,7 +250,7 @@ namespace picongpu
         typename FieldTmp::ValueType maxChargeDiff = algorithm::kernel::Reduce()(
             fieldTmp_coreBorder.origin(),
             fieldTmp_coreBorder.zone(),
-            pmacc::nvidia::functors::Max());
+            pmacc::math::operation::Max());
 
         /* reduce again across mpi cluster */
         container::HostBuffer<typename FieldTmp::ValueType, 1> maxChargeDiff_host(1);

@@ -20,16 +20,17 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/particles/flylite/helperFields/LocalEnergyHistogram.hpp"
 #include "picongpu/particles/flylite/helperFields/LocalEnergyHistogram.kernel"
 
 // pmacc
-#include <pmacc/static_assert.hpp>
 #include <pmacc/Environment.hpp>
 #include <pmacc/meta/ForEach.hpp>
+#include <pmacc/static_assert.hpp>
 
-#include <string>
 #include <memory>
+#include <string>
 
 
 namespace picongpu
@@ -92,8 +93,6 @@ namespace picongpu
                                 minEnergy,
                                 maxEnergy,
                                 mapper);
-
-                            dc.releaseData(FrameType::getName());
                         }
                     };
                 } // namespace detail
@@ -143,9 +142,6 @@ namespace picongpu
                         /* note: for average != supercell the BORDER region would need to be
                          *       build up via communication accordingly
                          */
-
-                        // release fields
-                        dc.releaseData(helperFields::LocalEnergyHistogram::getName(speciesGroup));
                     }
                 };
 

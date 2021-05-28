@@ -1,5 +1,5 @@
 /* Copyright 2013-2021 Axel Huebl, Rene Widera, Richard Pausch,
- *                     Benjamin Worpitz
+ *                     Benjamin Worpitz, Pawel Ordyna
  *
  * This file is part of PIConGPU.
  *
@@ -21,14 +21,16 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
-#include "picongpu/fields/Fields.def"
 
-#include <pmacc/fields/SimulationFieldHelper.hpp>
+#include "picongpu/fields/Fields.def"
+#include "picongpu/particles/filter/filter.def"
+
 #include <pmacc/dataManagement/ISimulationData.hpp>
-#include <pmacc/memory/buffers/GridBuffer.hpp>
+#include <pmacc/fields/SimulationFieldHelper.hpp>
 #include <pmacc/mappings/simulation/GridController.hpp>
 #include <pmacc/memory/boxes/DataBox.hpp>
 #include <pmacc/memory/boxes/PitchedBox.hpp>
+#include <pmacc/memory/buffers/GridBuffer.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -152,11 +154,13 @@ namespace picongpu
          *
          * @tparam T_area area to compute currents in
          * @tparam T_Species particle species type
+         * @tparam Filter particle filter used to filter contributing particles
+         *         (default is all particles contribute)
          *
          * @param species particle species
          * @param currentStep index of time iteration
          */
-        template<uint32_t AREA, class FrameSolver, class ParticlesClass>
+        template<uint32_t AREA, class FrameSolver, typename Filter = particles::filter::All, class ParticlesClass>
         HINLINE void computeValue(ParticlesClass& parClass, uint32_t currentStep);
 
         /** Bash particles in a direction.

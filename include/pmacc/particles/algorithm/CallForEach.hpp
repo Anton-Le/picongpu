@@ -22,9 +22,9 @@
 #pragma once
 
 #include "pmacc/Environment.hpp"
+#include "pmacc/functor/Interface.hpp"
 #include "pmacc/particles/algorithm/ForEach.hpp"
 #include "pmacc/particles/frame_types.hpp"
-#include "pmacc/functor/Interface.hpp"
 
 #include <utility>
 
@@ -60,8 +60,6 @@ namespace pmacc
                     auto species = dc.get<Species>(FrameType::getName(), true);
 
                     forEach(*species, UnaryFunctor(currentStep));
-
-                    dc.releaseData(FrameType::getName());
                 }
             };
 

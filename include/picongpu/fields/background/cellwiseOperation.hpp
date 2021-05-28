@@ -20,14 +20,14 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/simulation/control/MovingWindow.hpp"
 
 #include <pmacc/dimensions/DataSpace.hpp>
-#include <pmacc/mappings/simulation/SubGrid.hpp>
+#include <pmacc/lockstep.hpp>
 #include <pmacc/mappings/kernel/MappingDescription.hpp>
+#include <pmacc/mappings/simulation/SubGrid.hpp>
 #include <pmacc/traits/GetNumWorkers.hpp>
-#include <pmacc/mappings/threads/ForEachIdx.hpp>
-#include <pmacc/mappings/threads/IdxConfig.hpp>
 
 
 namespace picongpu
@@ -78,7 +78,6 @@ namespace picongpu
                 uint32_t const currentStep,
                 T_Mapping mapper) const
             {
-                using namespace mappings::threads;
                 constexpr uint32_t cellsPerSupercell = pmacc::math::CT::volume<SuperCellSize>::type::value;
                 constexpr uint32_t numWorker = T_numWorkers;
 
@@ -88,17 +87,16 @@ namespace picongpu
                 DataSpace<simDim> const blockCell = block * SuperCellSize::toRT();
                 DataSpace<simDim> const guardCells = mapper.getGuardingSuperCells() * SuperCellSize::toRT();
 
-                ForEachIdx<IdxConfig<cellsPerSupercell, numWorker>>{workerIdx}(
-                    [&](uint32_t const linearIdx, uint32_t const) {
-                        // cell index within the superCell
-                        DataSpace<simDim> const cellIdx
-                            = DataSpaceOperations<simDim>::template map<SuperCellSize>(linearIdx);
+                lockstep::makeForEach<cellsPerSupercell, numWorker>(workerIdx)([&](uint32_t const linearIdx) {
+                    // cell index within the superCell
+                    DataSpace<simDim> const cellIdx
+                        = DataSpaceOperations<simDim>::template map<SuperCellSize>(linearIdx);
 
-                        opFunctor(
-                            acc,
-                            field(blockCell + cellIdx),
-                            valFunctor(blockCell + cellIdx + totalDomainOffset - guardCells, currentStep));
-                    });
+                    opFunctor(
+                        acc,
+                        field(blockCell + cellIdx),
+                        valFunctor(blockCell + cellIdx + totalDomainOffset - guardCells, currentStep));
+                });
             }
         };
 
@@ -121,7 +119,7 @@ namespace picongpu
              *
              * @tparam ValFunctor A Value-Producing functor for a given cell
              *                    in time and space
-             * @tparam OpFunctor A manipulating functor like pmacc::nvidia::functors::add
+             * @tparam OpFunctor A manipulating functor like pmacc::math::operation::*
              */
             template<typename T_Field, typename T_OpFunctor, typename T_ValFunctor>
             void operator()(T_Field field, T_OpFunctor opFunctor, T_ValFunctor valFunctor, uint32_t const currentStep)

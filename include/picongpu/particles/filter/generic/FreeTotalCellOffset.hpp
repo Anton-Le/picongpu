@@ -20,6 +20,7 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/particles/filter/generic/FreeTotalCellOffset.def"
 #include "picongpu/particles/functor/misc/TotalCellOffset.hpp"
 
@@ -107,7 +108,7 @@ namespace picongpu
 
                     /** create functor for the accelerator
                      *
-                     * @tparam T_WorkerCfg pmacc::mappings::threads::WorkerCfg, configuration of the worker
+                     * @tparam T_WorkerCfg lockstep::Worker, configuration of the worker
                      * @tparam T_Acc alpaka accelerator type
                      *
                      * @param alpaka accelerator

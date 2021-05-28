@@ -21,18 +21,19 @@
 #pragma once
 
 #include "types.hpp"
-#include <pmacc/math/Vector.hpp>
+
+#include <pmacc/dimensions/DataSpaceOperations.hpp>
+#include <pmacc/lockstep.hpp>
+#include <pmacc/mappings/kernel/AreaMapping.hpp>
 #include <pmacc/mappings/threads/ThreadCollective.hpp>
-#include <pmacc/nvidia/functors/Assign.hpp>
+#include <pmacc/math/Vector.hpp>
+#include <pmacc/math/operation.hpp>
 #include <pmacc/memory/boxes/CachedBox.hpp>
 #include <pmacc/memory/dataTypes/Mask.hpp>
-#include <pmacc/dimensions/DataSpaceOperations.hpp>
+#include <pmacc/random/Random.hpp>
 #include <pmacc/random/distributions/distributions.hpp>
 #include <pmacc/random/methods/methods.hpp>
-#include <pmacc/random/Random.hpp>
 #include <pmacc/traits/GetNumWorkers.hpp>
-#include <pmacc/mappings/threads/ForEachIdx.hpp>
-#include <pmacc/mappings/threads/IdxConfig.hpp>
 
 #include <memory>
 
@@ -70,8 +71,6 @@ namespace gol
                 uint32_t const rule,
                 T_Mapping const& mapper) const
             {
-                using namespace mappings::threads;
-
                 using Type = typename T_BoxReadOnly::ValueType;
                 using SuperCellSize = typename T_Mapping::SuperCellSize;
                 using BlockArea = SuperCellDescription<SuperCellSize, math::CT::Int<1, 1>, math::CT::Int<1, 1>>;
@@ -88,13 +87,12 @@ namespace gol
 
                 ThreadCollective<BlockArea, numWorkers> collective(workerIdx);
 
-                nvidia::functors::Assign assign;
+                math::operation::Assign assign;
                 collective(acc, assign, cache, buffRead_shifted);
 
                 cupla::__syncthreads(acc);
 
-                ForEachIdx<IdxConfig<cellsPerSuperCell, numWorkers>>{
-                    workerIdx}([&](uint32_t const linearIdx, uint32_t const) {
+                lockstep::makeForEach<cellsPerSuperCell, numWorkers>(workerIdx)([&](uint32_t const linearIdx) {
                     // cell index within the superCell
                     DataSpace<DIM2> const cellIdx = DataSpaceOperations<DIM2>::template map<SuperCellSize>(linearIdx);
 
@@ -143,8 +141,6 @@ namespace gol
                 float const threshold,
                 T_Mapping const& mapper) const
             {
-                using namespace mappings::threads;
-
                 using SuperCellSize = typename T_Mapping::SuperCellSize;
                 constexpr uint32_t cellsPerSuperCell = pmacc::math::CT::volume<SuperCellSize>::type::value;
                 constexpr uint32_t numWorkers = T_numWorkers;
@@ -171,8 +167,7 @@ namespace gol
                 using Random = random::Random<Distribution, RngMethod, State*>;
                 Random rng(&state);
 
-                ForEachIdx<IdxConfig<cellsPerSuperCell, numWorkers>>{
-                    workerIdx}([&](uint32_t const linearIdx, uint32_t const) {
+                lockstep::makeForEach<cellsPerSuperCell, numWorkers>(workerIdx)([&](uint32_t const linearIdx) {
                     // cell index within the superCell
                     DataSpace<DIM2> const cellIdx = DataSpaceOperations<DIM2>::template map<SuperCellSize>(linearIdx);
                     // write 1(white) if uniform random number 0<rng<1 is smaller than 'threshold'

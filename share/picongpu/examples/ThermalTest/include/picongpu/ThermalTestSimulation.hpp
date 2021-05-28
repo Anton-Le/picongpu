@@ -20,37 +20,31 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
-#include <pmacc/Environment.hpp>
 
+#include "picongpu/ArgsParser.hpp"
+#include "picongpu/fields/FieldE.hpp"
+#include "picongpu/plugins/PluginController.hpp"
 #include "picongpu/simulation/control/Simulation.hpp"
 
-#include <pmacc/simulationControl/SimulationHelper.hpp>
-
-#include "picongpu/fields/FieldE.hpp"
-
-#include <pmacc/dimensions/GridLayout.hpp>
-#include <pmacc/eventSystem/EventSystem.hpp>
-
-#include <pmacc/nvidia/memory/MemoryInfo.hpp>
-#include <pmacc/mappings/kernel/MappingDescription.hpp>
-#include "picongpu/ArgsParser.hpp"
-#include "picongpu/plugins/PluginController.hpp"
-
-#include <pmacc/cuSTL/container/DeviceBuffer.hpp>
-#include <pmacc/cuSTL/container/HostBuffer.hpp>
+#include <pmacc/Environment.hpp>
+#include <pmacc/cuSTL/algorithm/functor/Add.hpp>
+#include <pmacc/cuSTL/algorithm/functor/GetComponent.hpp>
+#include <pmacc/cuSTL/algorithm/host/Foreach.hpp>
 #include <pmacc/cuSTL/algorithm/kernel/Foreach.hpp>
 #include <pmacc/cuSTL/algorithm/kernel/Reduce.hpp>
 #include <pmacc/cuSTL/algorithm/mpi/Gather.hpp>
 #include <pmacc/cuSTL/algorithm/mpi/Reduce.hpp>
-#include <pmacc/math/Vector.hpp>
-#include <pmacc/cuSTL/cursor/tools/slice.hpp>
-#include <pmacc/cuSTL/cursor/FunctorCursor.hpp>
-
+#include <pmacc/cuSTL/container/DeviceBuffer.hpp>
+#include <pmacc/cuSTL/container/HostBuffer.hpp>
 #include <pmacc/cuSTL/container/allocator/DeviceMemEvenPitchAllocator.hpp>
-#include <pmacc/cuSTL/algorithm/host/Foreach.hpp>
-#include <pmacc/nvidia/functors/Add.hpp>
-#include <pmacc/cuSTL/algorithm/functor/GetComponent.hpp>
-#include <pmacc/cuSTL/algorithm/functor/Add.hpp>
+#include <pmacc/cuSTL/cursor/FunctorCursor.hpp>
+#include <pmacc/cuSTL/cursor/tools/slice.hpp>
+#include <pmacc/dimensions/GridLayout.hpp>
+#include <pmacc/eventSystem/EventSystem.hpp>
+#include <pmacc/mappings/kernel/MappingDescription.hpp>
+#include <pmacc/math/Vector.hpp>
+#include <pmacc/math/operation.hpp>
+#include <pmacc/simulationControl/SimulationHelper.hpp>
 
 #include <cassert>
 #include <memory>
@@ -82,8 +76,6 @@ namespace picongpu
             this->eField_zt[0] = std::make_unique<container::HostBuffer<float, 2>>(
                 Size_t<2>(fieldE_coreBorder.size().z(), this->collectTimesteps));
             this->eField_zt[1] = std::make_unique<container::HostBuffer<float, 2>>(this->eField_zt[0]->size());
-
-            dc.releaseData(FieldE::getName());
         }
 
         void pluginRegisterHelp(po::options_description& desc)
@@ -176,11 +168,9 @@ namespace picongpu
                             cursor::tools::slice(fieldE_coreBorder.origin()(0, 0, z)),
                             pmacc::algorithm::functor::GetComponent<typename FieldE::ValueType::type>(i == 0 ? 0 : 2)),
                         reduceZone,
-                        nvidia::functors::Add());
+                        pmacc::math::operation::Add());
                 }
             }
-
-            dc.releaseData(FieldE::getName());
 
             if(currentStep == this->collectTimesteps + firstTimestep)
                 writeOutput();

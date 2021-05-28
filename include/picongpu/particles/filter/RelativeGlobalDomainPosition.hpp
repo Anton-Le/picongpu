@@ -21,10 +21,8 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
-#include "picongpu/particles/filter/RelativeGlobalDomainPosition.def"
-#include "picongpu/particles/traits/SpeciesEligibleForSolver.hpp"
 
-#include <pmacc/traits/HasIdentifiers.hpp>
+#include "picongpu/particles/filter/RelativeGlobalDomainPosition.def"
 
 
 namespace picongpu
@@ -118,7 +116,7 @@ namespace picongpu
 
                 /** create filter for the accelerator
                  *
-                 * @tparam T_WorkerCfg pmacc::mappings::threads::WorkerCfg, configuration of the worker
+                 * @tparam T_WorkerCfg lockstep::Worker, configuration of the worker
                  * @param localSupercellOffset offset (in superCells, without any guards) relative
                  *                        to the origin of the local domain
                  * @param configuration of the worker
@@ -146,15 +144,5 @@ namespace picongpu
             };
 
         } // namespace filter
-
-        namespace traits
-        {
-            template<typename T_Species, typename T_Params>
-            struct SpeciesEligibleForSolver<T_Species, filter::RelativeGlobalDomainPosition<T_Params>>
-            {
-                using type = typename pmacc::traits::
-                    HasIdentifiers<typename T_Species::FrameType, MakeSeq_t<localCellIdx>>::type;
-            };
-        } // namespace traits
     } // namespace particles
 } // namespace picongpu

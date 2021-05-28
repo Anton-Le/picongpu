@@ -23,8 +23,8 @@
 
 #include "picongpu/fields/FieldJ.hpp"
 
-#include <pmacc/dataManagement/DataConnector.hpp>
 #include <pmacc/Environment.hpp>
+#include <pmacc/dataManagement/DataConnector.hpp>
 
 #include <cstdint>
 
@@ -49,7 +49,6 @@ namespace picongpu
                     auto& fieldJ = *dc.get<FieldJ>(FieldJ::getName(), true);
                     FieldJ::ValueType zeroJ(FieldJ::ValueType::create(0._X));
                     fieldJ.assign(zeroJ);
-                    dc.releaseData(FieldJ::getName());
                 }
             };
 

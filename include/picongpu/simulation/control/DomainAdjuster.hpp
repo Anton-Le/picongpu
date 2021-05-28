@@ -21,19 +21,15 @@
 
 #include "picongpu/fields/absorber/Absorber.hpp"
 
-#include <pmacc/dimensions/DataSpace.hpp>
-
 #include <pmacc/Environment.hpp>
-#include <pmacc/mpi/reduceMethods/Reduce.hpp>
-#include <pmacc/mpi/MPIReduce.hpp>
-#include <pmacc/nvidia/functors/Add.hpp>
-#include <pmacc/nvidia/functors/Max.hpp>
-#include <pmacc/nvidia/functors/Min.hpp>
 #include <pmacc/dimensions/DataSpace.hpp>
+#include <pmacc/math/operation.hpp>
 #include <pmacc/mpi/GetMPI_StructAsArray.hpp>
+#include <pmacc/mpi/MPIReduce.hpp>
+#include <pmacc/mpi/reduceMethods/Reduce.hpp>
 
-#include <stdexcept>
 #include <array>
+#include <stdexcept>
 
 
 namespace picongpu
@@ -227,16 +223,18 @@ namespace picongpu
             bool const isBoundaryDevice = (m_mpiPosition[dim] == 0 || m_mpiPosition[dim] == m_numDevices[dim] - 1);
             if(isAbsorberEnabled && isBoundaryDevice)
             {
+                auto const& absorber = fields::absorber::Absorber::get();
+                auto const absorberThickness = absorber.getGlobalThickness();
                 size_t boundary = m_mpiPosition[dim] == 0u ? 0u : 1u;
-                int maxAbsorberCells = fields::absorber::numCells[dim][boundary];
+                int maxAbsorberCells = absorberThickness(dim, boundary);
 
                 if(m_movingWindowEnabled && dim == 1u)
                 {
                     /* since the device changes their position during the simulation
                      * the negative and positive absorber cells must fit into the domain
                      */
-                    maxAbsorberCells = static_cast<int>(
-                        std::max(fields::absorber::numCells[dim][0], fields::absorber::numCells[dim][1]));
+                    maxAbsorberCells
+                        = static_cast<int>(std::max(absorberThickness(dim, 0), absorberThickness(dim, 1)));
                 }
 
                 if(m_localDomainSize[dim] < maxAbsorberCells)
@@ -275,7 +273,7 @@ namespace picongpu
 
                 int globalMax;
                 mpiReduce(
-                    pmacc::nvidia::functors::Max(),
+                    pmacc::math::operation::Max(),
                     &globalMax,
                     &m_localDomainSize[dim],
                     1,
@@ -283,7 +281,7 @@ namespace picongpu
 
                 int globalMin;
                 mpiReduce(
-                    pmacc::nvidia::functors::Min(),
+                    pmacc::math::operation::Min(),
                     &globalMin,
                     &m_localDomainSize[dim],
                     1,
@@ -325,7 +323,7 @@ namespace picongpu
                 uint64_t localDomainSize = static_cast<uint64_t>(m_localDomainSize[dim]);
                 pmacc::mpi::MPIReduce mpiReduce;
                 mpiReduce(
-                    pmacc::nvidia::functors::Add(),
+                    pmacc::math::operation::Add(),
                     &validGlobalGridSize,
                     &localDomainSize,
                     1,

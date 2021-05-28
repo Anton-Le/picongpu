@@ -20,10 +20,11 @@
 #pragma once
 
 #include "picongpu/simulation_defines.hpp"
+
 #include "picongpu/particles/startPosition/generic/Free.def"
 
-#include <utility>
 #include <type_traits>
+#include <utility>
 
 namespace picongpu
 {
@@ -120,7 +121,7 @@ namespace picongpu
 
                     /** create device functor
                      *
-                     * @tparam T_WorkerCfg pmacc::mappings::threads::WorkerCfg, configuration of the worker
+                     * @tparam T_WorkerCfg lockstep::Worker, configuration of the worker
                      * @tparam T_Acc alpaka accelerator type
                      *
                      * @param alpaka accelerator
