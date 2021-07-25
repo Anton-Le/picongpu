@@ -70,6 +70,8 @@
 #SBATCH --mail-type=!TBG_mailSettings
 #SBATCH --mail-user=!TBG_mailAddress
 #SBATCH --chdir=!TBG_dstPath
+# notify the job 240 sec before the wall time ends
+#SBATCH --signal=B:SIGALRM@240
 
 # do not overwrite existing stderr and stdout files
 #SBATCH --open-mode=append
@@ -103,7 +105,7 @@ echo "----- automated restart routine -----"
 
 #check whether last checkpoint is valid
 file=""
-# ADIOS restart files take precedence over HDF5 files
+# ADIOS2 restart files take precedence over HDF5 files
 fileEnding="h5"
 hasADIOS=$(ls ./checkpoints/checkpoint_*.bp 2>/dev/null | wc -w)
 if [ $hasADIOS -gt 0 ]
@@ -172,7 +174,8 @@ else
 fi
 
 if [ $? -eq 0 ] ; then
-  mpiexec -tag-output --display-map !TBG_dstPath/input/bin/picongpu $stepSetup !TBG_author $programParams
+  source !TBG_dstPath/tbg/handleSlurmSignals.sh mpiexec -tag-output --display-map !TBG_dstPath/input/bin/picongpu \
+    $stepSetup !TBG_author $programParams
 fi
 
 if [ $nextStep -lt $finalStep ]

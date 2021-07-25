@@ -220,7 +220,7 @@ JURECA (JSC)
 
 **Production directory:** ``$SCRATCH`` (`link <http://www.fz-juelich.de/SharedDocs/FAQs/IAS/JSC/EN/JUST/FAQ_00_File_systems.html?nn=1297148>`_)
 
-For these profiles to work, you need to download the :ref:`PIConGPU source code <install-dependencies-picongpu>` and install :ref:`PNGwriter, c-blosc, adios and libSplash <install-dependencies>`, for the gpus partition also :ref:`Boost and HDF5 <install-dependencies>`, manually.
+For these profiles to work, you need to download the :ref:`PIConGPU source code <install-dependencies-picongpu>` and install :ref:`PNGwriter, openPMD and libSplash <install-dependencies>`, for the gpus partition also :ref:`Boost and HDF5 <install-dependencies>`, manually.
 
 Queue: batch (2 x Intel Xeon E5-2680 v3 CPUs, 12 Cores + 12 Hyperthreads/CPU)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -249,7 +249,7 @@ JUWELS (JSC)
 
 **Production directory:** ``$SCRATCH`` (`link <http://www.fz-juelich.de/ias/jsc/EN/Expertise/Supercomputers/JUWELS/FAQ/juwels_FAQ_node.html#faq1495160>`_)
 
-For these profiles to work, you need to download the :ref:`PIConGPU source code <install-dependencies-picongpu>` and install :ref:`PNGwriter, c-blosc, adios and libSplash <install-dependencies>`, for the gpus partition also :ref:`Boost and HDF5 <install-dependencies>`, manually.
+For these profiles to work, you need to download the :ref:`PIConGPU source code <install-dependencies-picongpu>` and install :ref:`PNGwriter, openPMD and libSplash <install-dependencies>`, for the gpus partition also :ref:`Boost and HDF5 <install-dependencies>`, manually.
 
 Queue: batch (2 x Intel Xeon Platinum 8168 CPUs, 24 Cores + 24 Hyperthreads/CPU)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -278,4 +278,19 @@ Queue: gpu (2 x NVIDIA Tesla k40m GPUs)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. literalinclude:: profiles/aris-grnet/gpu_picongpu.profile.example
+   :language: bash
+
+Ascent (ORNL)
+-------------
+
+**System overview and user guide:** `link <https://docs.olcf.ornl.gov/systems/ascent_user_guide.html#system-overview/>`_
+
+**Production directory:** usually ``$PROJWORK/$proj/`` (as on summit `link <https://www.olcf.ornl.gov/for-users/system-user-guides/summit/summit-user-guide/#file-systems>`_).
+
+For this profile to work, you need to download the :ref:`PIConGPU source code <install-dependencies-picongpu>` and install :ref:`openPMD-api, libSplash and PNGwriter <install-dependencies>` manually or use pre-installed libraries in the shared project directory.
+
+V100 GPUs (recommended)
+^^^^^^^^^^^^^^^^^^^^^^^
+
+.. literalinclude:: profiles/ascent-ornl/gpu_picongpu.profile.example
    :language: bash

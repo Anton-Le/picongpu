@@ -26,8 +26,8 @@ namespace picongpu
     {
         /** Return the current date as string
          *
-         * \param format, \see http://www.cplusplus.com/reference/ctime/strftime/
-         * \return std::string with formatted date
+         * @param format, @see http://www.cplusplus.com/reference/ctime/strftime/
+         * @return std::string with formatted date
          */
         std::string getDateString(std::string format)
         {
@@ -76,38 +76,6 @@ namespace picongpu
                 std::copy(listIt->begin(), listIt->end(), startIt);
                 if(padding != '\0')
                     result.buffers.at(startIdx + result.maxLen) = '\0';
-            }
-
-            // return
-            return result;
-        }
-
-        GetADIOSArrayOfString::Result GetADIOSArrayOfString::operator()(std::list<std::string> listOfStrings)
-        {
-            Result result;
-
-            // sum of all strings + their null terminators
-            StrSize strSize;
-            const size_t sumLen = std::accumulate(listOfStrings.begin(), listOfStrings.end(), 0u, strSize);
-
-            // allocate & prepare buffer, starts
-            result.buffers.assign(sumLen, '\0');
-            result.starts.assign(listOfStrings.size(), nullptr);
-
-            // concat all strings, \0 terminated
-            size_t startIdx = 0;
-            std::list<std::string>::iterator listIt = listOfStrings.begin();
-            for(size_t i = 0; i < listOfStrings.size(); ++i, ++listIt)
-            {
-                std::vector<char>::iterator startIt = result.buffers.begin() + startIdx;
-
-                // copy byte-wise onto padding
-                std::copy(listIt->begin(), listIt->end(), startIt);
-
-                // start pointer
-                result.starts.at(i) = &(*startIt);
-
-                startIdx += listIt->size() + 1;
             }
 
             // return

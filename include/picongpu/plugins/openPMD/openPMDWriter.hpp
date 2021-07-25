@@ -45,6 +45,7 @@
 #include "picongpu/plugins/output/IIOBackend.hpp"
 #include "picongpu/simulation/control/MovingWindow.hpp"
 #include "picongpu/traits/IsFieldDomainBound.hpp"
+#include "picongpu/traits/IsFieldOutputOptional.hpp"
 
 #include <pmacc/Environment.hpp>
 #include <pmacc/assert.hpp>
@@ -142,8 +143,15 @@ namespace picongpu
                 // avoid deadlock between not finished pmacc tasks and mpi calls in
                 // openPMD
                 __getTransactionEvent().waitForFinished();
-                openPMDSeries
-                    = std::make_unique<::openPMD::Series>(fullName, at, communicator, jsonMatcher->getDefault());
+                openPMDSeries = std::make_unique<::openPMD::Series>(
+                    fullName,
+                    at,
+                    communicator,
+                    /*
+                     * The openPMD plugin only supports configuring writing routines via JSON.
+                     * Reading routines get an empty JSON set.
+                     */
+                    at == ::openPMD::Access::READ_ONLY ? "{}" : jsonMatcher->getDefault());
                 if(openPMDSeries->backend() == "MPI_ADIOS1")
                 {
                     throw std::runtime_error(R"END(
@@ -449,6 +457,9 @@ Please pick either of the following:
 #ifndef __CUDA_ARCH__
                     DataConnector& dc = Environment<simDim>::get().DataConnector();
 
+                    // Skip optional fields
+                    if(traits::IsFieldOutputOptional<T_Field>::value && !dc.hasId(T_Field::getName()))
+                        return;
                     auto field = dc.get<T_Field>(T_Field::getName());
                     params->gridLayout = field->getGridLayout();
                     bool const isDomainBound = traits::IsFieldDomainBound<T_Field>::value;
@@ -1231,7 +1242,10 @@ Please pick either of the following:
 
                 /* attributes written here are pure meta data */
                 WriteMeta writeMetaAttributes;
-                writeMetaAttributes(*threadParams->openPMDSeries, threadParams->currentStep);
+                writeMetaAttributes(
+                    *threadParams->openPMDSeries,
+                    (*threadParams->openPMDSeries).WRITE_ITERATIONS[threadParams->currentStep],
+                    threadParams->currentStep);
 
                 // avoid deadlock between not finished pmacc tasks and mpi calls in
                 // openPMD

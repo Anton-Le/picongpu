@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Axel Huebl, Heiko Burau, Rene Widera
+/* Copyright 2013-2021 Axel Huebl, Heiko Burau, Rene Widera, Sergei Bastrakov
  *
  * This file is part of PIConGPU.
  *
@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "picongpu/fields/MaxwellSolver/FDTD/FDTD.def"
 #include "picongpu/fields/differentiation/Curl.def"
 #include "picongpu/fields/differentiation/Derivative.def"
 
@@ -31,13 +32,19 @@ namespace picongpu
         {
             namespace yee
             {
-                using CurlLeft = differentiation::Curl<differentiation::Backward>;
-                using CurlRight = differentiation::Curl<differentiation::Forward>;
+                //! Curl to apply to B (according to our Yee grid layout)
+                using CurlB = differentiation::Curl<differentiation::Backward>;
 
+                //! Curl to apply to E (according to our Yee grid layout)
+                using CurlE = differentiation::Curl<differentiation::Forward>;
             } // namespace yee
 
-            template<typename CurlE = yee::CurlRight, typename CurlB = yee::CurlLeft>
-            class Yee;
+            /** The classic Yee field solver, second-order in time and space
+             *
+             * Reference: K.S. Yee, Numerical solution of initial boundary value problems involving Maxwell's equations
+             *            in isotropic media, IEEE Trans. Antennas Propagat. 14, 302-307 (1966)
+             */
+            using Yee = FDTD<yee::CurlE, yee::CurlB>;
 
         } // namespace maxwellSolver
     } // namespace fields

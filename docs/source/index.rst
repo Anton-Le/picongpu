@@ -100,6 +100,17 @@ Post-Processing
    postprocessing/openPMD
    postprocessing/paraview
 
+*****************
+Usage for Experts
+*****************
+.. toctree::
+   :caption: EXPERTs
+   :maxdepth: 1
+   :hidden:
+
+   expert/deviceOversubscription
+   expert/signals
+
 ***********
 Development
 ***********

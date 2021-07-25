@@ -26,10 +26,7 @@ module load DefApps/alt
 module load git/2.31.1
 module load cmake/3.20.2
 module load craype-accel-amd-gfx908
-#module load rocm/4.1.0 # currently broken, thus use system installation by
-export ROCM_PATH=/opt/rocm-4.1.0
-export PATH=$ROCM_PATH/bin:$PATH
-export CMAKE_PREFIX_PATH=$ROCM_PATH:$CMAKE_PREFIX_PATH
+module load rocm/4.1.0
 
 export HIP_PATH=$ROCM_PATH/hip # has to be set in order to be able to compile
 
@@ -42,11 +39,12 @@ module load c-blosc/1.21.0
 module load cray-python/3.8.5.0
 module load hdf5/1.10.7 # dependency of openpmd-api module (no other possible)
 module load adios2/2.7.1 # dependency of openpmd-api module
-module load openpmd-api/0.13.2
+module load openpmd-api/0.13.4
 
 module load libpng/1.6.37
 
 # Self-Build Software #########################################################
+# Optional, not required.
 #
 # needs to be compiled by the user
 # Check the install script at
@@ -70,7 +68,7 @@ export CMAKE_PREFIX_PATH=$Splash_DIR:$CMAKE_PREFIX_PATH
 #
 export PICSRC=$HOME/src/picongpu
 export PIC_EXAMPLES=$PICSRC/share/picongpu/examples
-export PIC_BACKEND="hip"
+export PIC_BACKEND="hip:908"
 
 export PATH=$PATH:$PICSRC
 export PATH=$PATH:$PICSRC/bin
@@ -81,7 +79,8 @@ export PYTHONPATH=$PICSRC/lib/python:$PYTHONPATH
 export CMAKE_MODULE_PATH=$HIP_PATH/cmake:$CMAKE_MODULE_PATH
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$BOOST_ROOT/lib
 export CMAKE_PREFIX_PATH=$BOOST_ROOT:$CMAKE_PREFIX_PATH
-export HIPCC_COMPILE_FLAGS_APPEND="$HIPCC_COMPILE_FLAGS_APPEND -I${MPICH_DIR}/include -L${MPICH_DIR}/lib -lmpi -L/opt/cray/pe/mpich/8.1.4/gtl/lib -lmpi_gtl_hsa"
+export HIPCC_COMPILE_FLAGS_APPEND="$HIPCC_COMPILE_FLAGS_APPEND -I${MPICH_DIR}/include"
+export HIPCC_LINK_FLAGS_APPEND="$HIPCC_LINK_FLAGS_APPEND -L${MPICH_DIR}/lib -lmpi -L/opt/cray/pe/mpich/8.1.4/gtl/lib -lmpi_gtl_hsa"
 
 # "tbg" default options #######################################################
 #   - SLURM (sbatch)

@@ -104,6 +104,17 @@ namespace pmacc
             return topology;
         }
 
+        /*! MPI communicator for signal handling
+         *
+         * @attention Do not use this communicator to transfer simulation data.
+         *
+         * @return communicator used transfer signal information only
+         */
+        MPI_Comm getMPISignalComm() const
+        {
+            return commSignal;
+        }
+
         MPI_Info getMPIInfo() const
         {
             return MPI_INFO_NULL;
@@ -150,6 +161,8 @@ namespace pmacc
 
             /*create new communicator based on cartesian coordinates*/
             MPI_CHECK(MPI_Cart_create(computing_comm, DIM, dims, periods, 0, &topology));
+            // create communicator for signal handling
+            MPI_CHECK(MPI_Comm_dup(topology, &commSignal));
 
             // 3. update Host rank
             updateHostRank();
@@ -340,7 +353,7 @@ namespace pmacc
             }
         }
 
-        /*! update coordinates \see getCoordinates
+        /*! update coordinates @see getCoordinates
          */
         void updateCoordinates()
         {
@@ -435,11 +448,13 @@ namespace pmacc
         DataSpace<DIM3> periodic;
         //! MPI communicator (currently MPI_COMM_WORLD)
         MPI_Comm topology;
-        //! array for exchangetype-to-rank conversion \see ExchangeTypeToRank
+        //! Communicator to handle signals
+        MPI_Comm commSignal;
+        //! array for exchangetype-to-rank conversion @see ExchangeTypeToRank
         int ranks[27];
         //! size of pmacc [cx,cy,cz]
         int dims[3];
-        //! \see getCommunicationMask
+        //! @see getCommunicationMask
         Mask communicationMask;
         //! rank of this process local to its host (node)
         int hostRank;

@@ -34,8 +34,8 @@ namespace picongpu
     {
         /** Return the current date as string
          *
-         * \param format, \see http://www.cplusplus.com/reference/ctime/strftime/
-         * \return std::string with formatted date
+         * @param format, @see http://www.cplusplus.com/reference/ctime/strftime/
+         * @return std::string with formatted date
          */
         std::string getDateString(std::string format);
 
@@ -73,36 +73,6 @@ namespace picongpu
             };
 
             Result operator()(std::list<std::string> listOfStrings, char padding = '\0');
-        };
-
-        /** Create array of c-strings suitable for ADIOS
-         *
-         * Convert a std::list of strings to a format that is suitable to
-         * be written into ADIOS (`char *strings[]`).
-         */
-        class GetADIOSArrayOfString
-        {
-        private:
-            // accumulate the size of a string + \0 to an initial value
-            struct StrSize
-            {
-                size_t operator()(size_t init, std::string s)
-                {
-                    return init + // previous length
-                        s.size() + // this strings length
-                        1; // this strings null terminator
-                }
-            };
-
-        public:
-            // resulting type containing all attributes for a ADIOS write call
-            struct Result
-            {
-                std::vector<char> buffers;
-                std::vector<char*> starts;
-            };
-
-            Result operator()(std::list<std::string> listOfStrings);
         };
 
     } // namespace helper
