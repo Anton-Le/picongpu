@@ -71,22 +71,30 @@ namespace picongpu
                     = LaserFunctor::Unitless::initPlaneY % SuperCellSize::y::value;
 
                 auto forEachCell = lockstep::makeForEach<planeSize, numWorkers>(workerIdx);
-                forEachCell([&](uint32_t const linearIdx) {
-                    auto accLaserFunctor = laserFunctor(acc, localSuperCellOffset, forEachCell.getWorkerCfg());
+                forEachCell(
+                    [&](uint32_t const linearIdx)
+                    {
+                        auto accLaserFunctor = laserFunctor(acc, localSuperCellOffset, forEachCell.getWorkerCfg());
 
-                    /* cell index within the superCell */
-                    DataSpace<simDim> cellIdxInSuperCell
-                        = DataSpaceOperations<simDim>::template map<LaserPlaneSizeInSuperCell>(linearIdx);
-                    cellIdxInSuperCell.y() += cellOffsetInSuperCellFromInitPlaneY;
+                        /* cell index within the superCell */
+                        DataSpace<simDim> cellIdxInSuperCell
+                            = DataSpaceOperations<simDim>::template map<LaserPlaneSizeInSuperCell>(linearIdx);
+                        cellIdxInSuperCell.y() += cellOffsetInSuperCellFromInitPlaneY;
 
-                    accLaserFunctor(acc, cellIdxInSuperCell);
-                });
+                        accLaserFunctor(acc, cellIdxInSuperCell);
+                    });
             }
         };
 
         /** Laser init in a single xz plane */
         struct LaserPhysics
         {
+            //! Return if a laser is enabled for this simulation (None laser counts as not enabled)
+            static bool isEnabled()
+            {
+                return laserProfiles::Selected::INIT_TIME > 0.0_X;
+            }
+
             void operator()(uint32_t currentStep) const
             {
                 /* The laser can be initialized in the plane of the first cell or

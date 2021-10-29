@@ -26,6 +26,7 @@ One can e.g. disable the output of particles by setting:
    using FileOutputParticles = MakeSeq_t< >;
 
 Particle filters used for output plugins, including this one, are defined in :ref:`particleFilters.param <usage-params-core>`.
+Also see :ref:`common patterns of defining particle filters <usage-workflows-particleFilters>`.
 
 .cfg file
 ^^^^^^^^^
@@ -43,9 +44,8 @@ The openPMD API will parse the file name to decide the chosen backend and iterat
 In order to set defaults for these value, two further options control the filename:
 
 * ``--openPMD.ext`` sets the filename extension.
-  Possible extensions include ``bp`` for the ADIOS2 backends (default), ``h5`` for HDF5 and ``sst`` for Streaming via ADIOS2/SST.
-  If the openPMD API has been built with support for the ADIOS1 and ADIOS2 backends, ADIOS2 will take precedence over ADIOS1.
-  This behavior can be overridden by setting the environment variable ``OPENPMD_BP_BACKEND=ADIOS1``.
+  Possible extensions include ``bp`` for the ADIOS2 backend (default), ``h5`` for HDF5 and ``sst`` for Streaming via ADIOS2/SST.
+  In case your openPMD API supports both ADIOS1 and ADIOS2, make sure that environment variable ``OPENPMD_BP_BACKEND`` is not set to ADIOS1.
 * ``--openPMD.infix`` sets the filename pattern that controls the iteration layout, default is "_06T" for a six-digit number specifying the iteration.
   Leave empty to pick group-based iteration layout.
   Since passing an empty string may be tricky in some workflows, specifying ``--openPMD.infix=NULL`` is also possible.
@@ -113,7 +113,6 @@ PIConGPU command line option          description
 ===================================== ====================================================================================================================================================
 ``--openPMD.period``                  Period after which simulation data should be stored on disk.
 ``--openPMD.source``                  Select data sources and filters to dump. Default is ``species_all,fields_all``, which dumps all fields and particle species.
-``--openPMD.compression``             Legacy parameter to set data transform compression method to be used for ADIOS1 backend until it implements setting compression from JSON config.
 ``--openPMD.file``                    Relative or absolute openPMD file prefix for simulation data. If relative, files are stored under ``simOutput``. 
 ``--openPMD.ext``                     openPMD filename extension (this controls thebackend picked by the openPMD API).
 ``--openPMD.infix``                   openPMD filename infix (use to pick file- or group-based layout in openPMD). Set to NULL to keep empty (e.g. to pick group-based iteration layout).
@@ -158,3 +157,39 @@ Additional Tools
 ^^^^^^^^^^^^^^^^
 
 See our :ref:`openPMD <pp-openPMD>` chapter.
+
+Experimental: Asynchronous writing
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This implements (part of) the workflow described in section 2 of `this paper <https://arxiv.org/abs/2107.06108>`_.
+Rather than writing data to disk directly from PIConGPU, data is streamed via ADIOS2 SST (sustainable streaming transport) to a separate process running asynchronously to PIConGPU.
+This separate process (``openpmd-pipe``) captures the stream and writes it to disk.
+``openpmd-pipe`` is a Python-based script that comes with recent development versions of openPMD-api (commit bf5174da20e2aeb60ed4c8575da70809d07835ed or newer).
+A template is provided under ``etc/picongpu/summit-ornl/gpu_batch_pipe.tpl`` for running such a workflow on the Summit supercompute system.
+A corresponding single-node runtime configuration is provided for the KelvinHelmholtz example under ``share/picongpu/examples/KelvinHelmholtz/etc/picongpu/6_pipe.cfg`` (can be scaled up to multi-node).
+It puts six instances of PIConGPU on one node (one per GPU) and one instance of ``openpmd-pipe``.
+
+Advantages:
+
+* Checkpointing and heavy-weight output writing can happen asynchronously, blocking the simulation less.
+* Only one file per node is written, implicit node-level aggregation of data from multiple instances of PIConGPU to one instance of ``openpmd-pipe`` per node.
+  ADIOS2 otherwise also performs explicit node-level data aggregation via MPI; with this setup, ADIOS2 can (and does) skip that step.
+* This setup can serve as orientation for the configuration of other loosely-coupled workflows.
+
+Drawbacks:
+
+* Moving all data to another process means that enough memory must be available per node to tolerate that.
+  One way to interpret such a setup is to use idle host memory as a buffer for asynchronous writing in the background.
+* Streaming data distribution strategies are not yet mainlined in openPMD-api, meaning that ``openpmd-pipe`` currently implements a simple ad-hoc data distribution:
+  Data is distributed by simply dividing each dataset into n equal-sized chunks where n is the number of reading processes.
+  In consequence, communication is currently not strictly intra-node.
+  ADIOS2 SST currently relies solely on inter-node communication infrastructure anyway, and performance differences are hence expected to be low.
+
+Notes on the implementation of a proper template file:
+
+* An asynchronous job can be launched by using ordinary Bash syntax for asynchronous launching of processes (``this_is_launched_asynchronously & and_this_is_not;``).
+  Jobs must be waited upon using ``wait``.
+* Most batch systems will forward all resource allocations of a batch script to launched parallel processes inside the batch script.
+  When launching several processes asynchronously, resources must be allocated explicitly.
+  This includes GPUs, CPU cores and often memory.
+* This setup is currently impossible to implement on the HZDR Hemera cluster due to a wrong configuration of the Batch system.

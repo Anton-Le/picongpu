@@ -21,7 +21,7 @@
 
 #include "picongpu/simulation_defines.hpp"
 
-#include "picongpu/fields/MaxwellSolver/CFLChecker.hpp"
+#include "picongpu/fields/MaxwellSolver/LaserChecker.hpp"
 #include "picongpu/fields/MaxwellSolver/None/None.def"
 #include "picongpu/fields/cellType/Yee.hpp"
 #include "picongpu/traits/GetMargin.hpp"
@@ -38,15 +38,14 @@ namespace picongpu
             class None
             {
             private:
-                typedef MappingDesc::SuperCellSize SuperCellSize;
+                using SuperCellSize = MappingDesc::SuperCellSize;
 
             public:
                 using CellType = cellType::Yee;
 
                 None(MappingDesc)
                 {
-                    // Note: the default CFL checker is sufficient, thus it is not specialized for None
-                    CFLChecker<None>{}();
+                    LaserChecker<None>{}();
                 }
 
                 void update_beforeCurrent(uint32_t)

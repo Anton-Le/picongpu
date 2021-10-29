@@ -38,6 +38,12 @@ The volume integral is realized by a discrete sum over the simulation cells and 
 .. note::
     This calculation is based on the kinematic model of scattering. Multiple scattering CAN NOT be handled in this model.
 
+External Dependencies
+^^^^^^^^^^^^^^^^^^^^^
+
+The plugin is available as soon as the :ref:`openPMD API <install-dependencies>` is compiled in.
+
+
 .param file
 ^^^^^^^^^^^
 
@@ -100,9 +106,7 @@ Command line option                          Description
 
 ``--<species>_xrayScattering.file``          Output file name. Default is `<species>_xrayScatteringOutput`.
 
-``--<species>_xrayScattering.ext``           `openPMD` filename extension. This controls the backend picked by the `openPMD` API. Default is `bp` for adios backend.
-
-``--<species>_xrayScattering.compression``   Backend-specific `openPMD` compression method (e.g.) zlib.
+``--<species>_xrayScattering.ext``           `openPMD` filename extension. This controls the backend picked by the `openPMD` API. Default is `bp` for adios2 backend.
 
 ``--<species>_xrayScattering.memoryLayout``  Possible values: `mirror` and `split`. Output can be mirrored on all Host+Device pairs or uniformly split, in chunks, over all nodes.
                                              Use split when the output array is too big to store the complete computed q-space on one device.

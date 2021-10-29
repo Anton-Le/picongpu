@@ -19,7 +19,9 @@ sed -i 's/inline/GLM_FUNC_DECL/g' $GLM_ROOT/glm/gtc/type_ptr.inl
 cd $CI_PROJECT_DIR
 git clone https://github.com/ComputationalRadiationPhysics/isaac.git
 cd isaac
-git checkout 822f3c240a3bbdf3962984f4fc43f2ea7e75f2eb
+# ISAAC version with new LIC kernel https://github.com/ComputationalRadiationPhysics/isaac/pull/143
+# and moving window fix https://github.com/ComputationalRadiationPhysics/isaac/pull/148
+git checkout b8c66ba851e9dfcc48e7bc1ab677828e3adbd22f
 mkdir build_isaac
 cd build_isaac
 cmake ../lib/ -DCMAKE_INSTALL_PREFIX=$ISAAC_ROOT
