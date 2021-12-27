@@ -60,10 +60,10 @@ endif()
 # Language Flags
 ###############################################################################
 
-# enforce C++14
+# enforce C++17
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 
 ################################################################################
@@ -104,7 +104,7 @@ endif(GOL_RELEASE)
 # Find Boost
 ###############################################################################
 
-find_package(Boost 1.65.1 REQUIRED COMPONENTS program_options)
+find_package(Boost 1.66.0 REQUIRED COMPONENTS program_options)
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${Boost_LIBRARIES})
 

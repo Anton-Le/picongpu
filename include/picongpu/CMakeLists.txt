@@ -117,10 +117,10 @@ endif()
 # Language Flags
 ###############################################################################
 
-# enforce C++14
+# enforce C++17
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 
 ################################################################################
@@ -170,20 +170,6 @@ set(HOST_LIBS ${HOST_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 
 
 ################################################################################
-# Find OpenMP
-################################################################################
-
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND ALPAKA_ACC_GPU_CUDA_ENABLE AND ALPAKA_CUDA_COMPILER MATCHES "clang")
-    message(WARNING "OpenMP host side acceleration is disabled: CUDA compilation with clang is not supporting OpenMP.")
-else()
-    find_package(OpenMP)
-    if(OPENMP_FOUND)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-    endif()
-endif()
-
-
-################################################################################
 # Find zlib
 ################################################################################
 
@@ -206,7 +192,7 @@ endif()
 # Find Boost
 ################################################################################
 
-find_package(Boost 1.65.1 REQUIRED COMPONENTS program_options filesystem
+find_package(Boost 1.66.0 REQUIRED COMPONENTS program_options filesystem
                                               system math_tr1 serialization)
 if(TARGET Boost::program_options)
     set(HOST_LIBS ${HOST_LIBS} Boost::boost Boost::program_options
@@ -330,7 +316,7 @@ PIC_dependency(openPMD "API for IO" AUTO)
 
 if(PIC_SEARCH_openPMD)
     # find openPMD installation
-    find_package(openPMD 0.12.0 CONFIG COMPONENTS MPI)
+    find_package(openPMD 0.14.3 CONFIG COMPONENTS MPI)
     if(openPMD_FOUND)
         if(openPMD_HAVE_ADIOS2 OR openPMD_HAVE_HDF5)
             message(STATUS "Found openPMD: ${openPMD_DIR}")
@@ -556,7 +542,7 @@ if(${CLANG_TIDY_RETURN} EQUAL 0)
             # -checks='-*,modernize-use-using'
             # -fix # -fix-errors
             --
-            -std=c++14
+            -std=c++17
             ${OpenMP_CXX_FLAGS}
             ${ALL_INCLUDES_STR}
             ${ALL_DEFINES_STR}

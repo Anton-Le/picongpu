@@ -72,10 +72,10 @@ endif()
 # Language Flags
 ###############################################################################
 
-# enforce C++14
+# enforce C++17
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 
 ###############################################################################
@@ -140,6 +140,10 @@ if(${PMACC_ALPAKA_PROVIDER} STREQUAL "intern")
     list(INSERT CMAKE_MODULE_PATH 0 "${PMacc_DIR}/../../thirdParty/cupla/alpaka")
 endif()
 
+# Set alpaka CXX standard because the default is currently C++14.
+if(NOT DEFINED ALPAKA_CXX_STANDARD)
+    set(ALPAKA_CXX_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING "C++ standard version")
+endif()
 
 ################################################################################
 # Find cupla
@@ -312,7 +316,7 @@ endif(MPI_CXX_FOUND)
 # Find Boost
 ################################################################################
 
-find_package(Boost 1.65.1 REQUIRED COMPONENTS filesystem system math_tr1)
+find_package(Boost 1.66 REQUIRED COMPONENTS filesystem system math_tr1)
 if(TARGET Boost::filesystem)
     set(PMacc_LIBRARIES ${PMacc_LIBRARIES} Boost::boost Boost::filesystem
                                            Boost::system Boost::math_tr1)
@@ -357,8 +361,10 @@ endif()
 # Find OpenMP
 ################################################################################
 
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND ALPAKA_ACC_GPU_CUDA_ENABLE AND ALPAKA_CUDA_COMPILER MATCHES "clang")
-    message(WARNING "OpenMP host side acceleration is disabled: CUDA compilation with clang is not supporting OpenMP.")
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND (ALPAKA_ACC_GPU_HIP_ENABLE OR (ALPAKA_ACC_GPU_CUDA_ENABLE AND ALPAKA_CUDA_COMPILER MATCHES "clang")))
+    # For HIP the problem is that in alpaka '::isnan(), ::sinh(), ::isfinite(), ::isinf()' is not found.
+    # The reason could be that if OpenMP is activated clang is using math C headers where all of these functions are macros.
+    message(WARNING "OpenMP host side acceleration is disabled: CUDA/HIP compilation with clang is not supporting OpenMP.")
 else()
     find_package(OpenMP)
     if(OPENMP_FOUND)

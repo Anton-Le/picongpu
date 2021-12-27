@@ -47,6 +47,7 @@ namespace picongpu
                 // simple layout: only one global JSON object was passed
                 // forward this one directly to openPMD
                 m_patterns.emplace_back("", std::make_shared<nlohmann::json>(config));
+                m_defaultConfig = config;
             }
             else if(config.is_array())
             {
@@ -133,9 +134,14 @@ namespace picongpu
                 auto const& datasetConfig = backend.matcher.get(datasetPath);
                 if(datasetConfig.empty())
                 {
-                    continue;
+                    // ensure that there actually is an object to erase this from
+                    result[backend.backendName]["dataset"] = {};
+                    result[backend.backendName].erase("dataset");
                 }
-                result[backend.backendName]["dataset"] = datasetConfig;
+                else
+                {
+                    result[backend.backendName]["dataset"] = datasetConfig;
+                }
             }
             return result.dump();
         }
@@ -148,10 +154,18 @@ namespace picongpu
                 auto const& datasetConfig = backend.matcher.getDefault();
                 if(datasetConfig.empty())
                 {
-                    continue;
+                    // ensure that there actually is an object to erase this from
+                    result[backend.backendName]["dataset"] = {};
+                    result[backend.backendName].erase("dataset");
                 }
-                result[backend.backendName]["dataset"] = datasetConfig;
+                else
+                {
+                    result[backend.backendName]["dataset"] = datasetConfig;
+                }
             }
+            // note that at this point, config[<backend>][dataset] is no longer
+            // a list, the list has been resolved by the previous loop
+            addDefaults(result);
             return result.dump();
         }
 
@@ -330,6 +344,18 @@ The key 'select' must point to either a single string or an array of strings.)EN
         catch(nlohmann::json::out_of_range const&)
         {
             throw std::runtime_error(errorMsg);
+        }
+    }
+
+    void addDefaults(nlohmann::json& config)
+    {
+        // disable HDF5 chunking as it can conflict with MPI-IO backends
+        {
+            auto& hdf5Dataset = config["hdf5"]["dataset"];
+            if(!hdf5Dataset.contains("chunks"))
+            {
+                hdf5Dataset["chunks"] = "none";
+            }
         }
     }
 } // namespace

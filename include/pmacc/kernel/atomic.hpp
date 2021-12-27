@@ -67,11 +67,10 @@ namespace pmacc
                 }
             };
 
-#if(!defined(__CUDA__) && ALPAKA_ACC_GPU_HIP_ENABLED == 1 && (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) < 401)
-            /** HIP backend specialization for atomic add
+#if(ALPAKA_ACC_GPU_HIP_ENABLED == 1 && (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) < 401)
+            /** HIP backend specialization for atomic add float
              *
              * Uses the intrinsic atomicAddNoRet available for AMD gpus only.
-             * Not compatible with HIP-nvcc.
              */
             template<typename T_Hierarchy, typename... T_AccArgs>
             struct AtomicOpNoRet<::alpaka::AtomicAdd, alpaka::AccGpuHipRt<T_AccArgs...>, float, T_Hierarchy>
@@ -83,6 +82,45 @@ namespace pmacc
                     T_Hierarchy const& hierarchy)
                 {
                     ::atomicAddNoRet(ptr, value);
+                }
+            };
+#elif(ALPAKA_ACC_GPU_HIP_ENABLED == 1 && (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) >= 403)
+            /** HIP backend specialization for atomic add float
+             *
+             * atomicAdd(float*,float) into shared memory is very slow for HIP 4.3+.
+             * HIP 4.3 introduced scoped atomics, it looks like atomicAdd for float, even on shared memory data, is
+             * always actually executed in global memory. This spezilization is only overwriting the atomicAdd
+             * implementation for float, for atomics between threads.
+             *
+             * Note: The HIP atomicAdd implementation for double is not effected by this performance bug.
+             */
+            template<typename... T_AccArgs>
+            struct AtomicOpNoRet<
+                ::alpaka::AtomicAdd,
+                alpaka::AccGpuHipRt<T_AccArgs...>,
+                float,
+                ::alpaka::hierarchy::Threads>
+            {
+                template<typename T_Hierarchy>
+                DINLINE void operator()(
+                    alpaka::AccGpuHipRt<T_AccArgs...> const& acc,
+                    float* address,
+                    float const val,
+                    T_Hierarchy const& hierarchy)
+                {
+                    unsigned int* address_as_u(reinterpret_cast<unsigned int*>(address));
+                    unsigned int old = __atomic_load_n(address_as_u, __ATOMIC_RELAXED);
+                    unsigned int assumed;
+                    do
+                    {
+                        assumed = old;
+                        old = ::atomicCAS(
+                            address_as_u,
+                            assumed,
+                            static_cast<unsigned int>(
+                                __float_as_uint(val + __uint_as_float(static_cast<unsigned int>(assumed)))));
+                        // Note: uses integer comparison to avoid hang in case of NaN (since NaN != NaN)
+                    } while(assumed != old);
                 }
             };
 #endif
@@ -105,15 +143,10 @@ namespace pmacc
             template<typename T>
             struct AtomicAllIncIsOptimized
             {
-                enum
-                {
-                    value = std::is_same < T,
-                    int > ::value || std::is_same < T,
-                    unsigned int > ::value || std::is_same < T,
-                    long long int > ::value || std::is_same < T,
-                    unsigned long long int > ::value || std::is_same < T,
-                    float > ::value
-                };
+                inline static constexpr bool value
+                    = std::is_same_v<
+                          T,
+                          int> || std::is_same_v<T, unsigned int> || std::is_same_v<T, long long int> || std::is_same_v<T, unsigned long long int> || std::is_same_v<T, float>;
             };
 
             /**

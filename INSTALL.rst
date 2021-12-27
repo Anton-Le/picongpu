@@ -52,7 +52,7 @@ gcc
 
 CMake
 """""
-- 3.15.0 or higher
+- 3.18.0 or higher
 - *Debian/Ubuntu:* ``sudo apt-get install cmake file cmake-curses-gui``
 - *Arch Linux:* ``sudo pacman --sync cmake``
 - *Spack:* ``spack install cmake``
@@ -89,15 +89,15 @@ zlib
 
 boost
 """""
-- 1.65.1 - 1.74.0 (``program_options``, ``filesystem``, ``system``, ``math``, ``serialization`` and header-only libs, optional: ``fiber`` with ``context``, ``thread``, ``chrono``, ``atomic``, ``date_time``)
+- 1.66.0 - 1.74.0 (``program_options``, ``filesystem``, ``system``, ``math``, ``serialization`` and header-only libs, optional: ``fiber`` with ``context``, ``thread``, ``chrono``, ``atomic``, ``date_time``)
 - *Debian/Ubuntu:* ``sudo apt-get install libboost-program-options-dev libboost-filesystem-dev libboost-system-dev libboost-thread-dev libboost-chrono-dev libboost-atomic-dev libboost-date-time-dev libboost-math-dev libboost-serialization-dev libboost-fiber-dev libboost-context-dev``
 - *Arch Linux:* ``sudo pacman --sync boost``
 - *Spack:* ``spack install boost``
 - *from source:*
 
-  - ``curl -Lo boost_1_65_1.tar.gz https://dl.bintray.com/boostorg/release/1.65.1/source/boost_1_65_1.tar.gz``
-  - ``tar -xzf boost_1_65_1.tar.gz``
-  - ``cd boost_1_65_1``
+  - ``curl -Lo boost_1_66_0.tar.gz https://boostorg.jfrog.io/ui/native/main/release/1.66.0/source/boost_1_66_0.tar.gz``
+  - ``tar -xzf boost_1_66_0.tar.gz``
+  - ``cd boost_1_66_0``
   - ``./bootstrap.sh --with-libraries=atomic,chrono,context,date_time,fiber,filesystem,math,program_options,serialization,system,thread --prefix=$HOME/lib/boost``
   - ``./b2 cxxflags="-std=c++11" -j4 && ./b2 install``
 - *environment:* (assumes install from source in ``$HOME/lib/boost``)
@@ -118,11 +118,11 @@ rsync
 - *Arch Linux:* ``sudo pacman --sync rsync``
 - *Spack:* ``spack install rsync``
 
-alpaka 0.6.X
+alpaka 0.8.X
 """"""""""""
 - `alpaka <https://github.com/alpaka-group/alpaka>`_ is included in the PIConGPU source code
 
-cupla 0.3.0
+cupla 0.4.X
 """""""""""
 - `cupla <https://github.com/alpaka-group/cupla>`_ is included in the PIConGPU source code
 
