@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Felix Schmitt, Heiko Burau, Rene Widera,
+/* Copyright 2013-2022 Felix Schmitt, Heiko Burau, Rene Widera,
  *                     Benjamin Worpitz
  *
  * This file is part of PMacc.
@@ -100,7 +100,7 @@ namespace pmacc
         template<typename T_DataBox, typename T_ValueType, typename T_SizeVecType, typename T_Acc>
         DINLINE void operator()(
             T_Acc const& acc,
-            T_DataBox& memBox,
+            T_DataBox memBox,
             T_ValueType const& value,
             T_SizeVecType const& size) const
         {

@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Axel Huebl, Heiko Burau, Rene Widera, Benjamin Worpitz,
+/* Copyright 2013-2022 Axel Huebl, Heiko Burau, Rene Widera, Benjamin Worpitz,
  *                     Sergei Bastrakov
  *
  * This file is part of PMacc.
@@ -192,7 +192,7 @@ namespace alpaka
 {
     namespace math
     {
-        namespace traits
+        namespace trait
         {
             /*! Specialisation of pow where base is a vector and exponent is a scalar
              *
@@ -243,7 +243,7 @@ namespace alpaka
                 }
             };
 
-        } // namespace traits
+        } // namespace trait
     } // namespace math
 } // namespace alpaka
 

@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Axel Huebl, Heiko Burau, Rene Widera, Sergei Bastrakov
+/* Copyright 2013-2022 Axel Huebl, Heiko Burau, Rene Widera, Sergei Bastrakov
  *
  * This file is part of PIConGPU.
  *
@@ -73,6 +73,8 @@ namespace picongpu
                     , zDerivativeFunctor(makeDerivativeFunctor<Derivative, 2>())
                 {
                 }
+
+                HDINLINE Curl(const Curl&) = default;
 
                 /** Return curl value at the given point
                  *

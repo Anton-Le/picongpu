@@ -1,4 +1,4 @@
-/* Copyright 2016-2021 Heiko Burau
+/* Copyright 2016-2022 Heiko Burau
  *
  * This file is part of PIConGPU.
  *
@@ -79,6 +79,8 @@ namespace picongpu
         {
         }
 
+        HDINLINE CalorimeterFunctor(const CalorimeterFunctor&) = default;
+
         HINLINE void setCalorimeterCursor(const CalorimeterCur& calorimeterCur)
         {
             this->calorimeterCur = calorimeterCur;
@@ -111,13 +113,13 @@ namespace picongpu
                 // yaw
                 int32_t yawBin = calorimeterPos.x() * static_cast<float_X>(numBinsYaw);
                 // catch out-of-range values
-                yawBin = yawBin >= numBinsYaw ? numBinsYaw - 1 : yawBin;
+                yawBin = yawBin >= static_cast<int32_t>(numBinsYaw) ? numBinsYaw - 1 : yawBin;
                 yawBin = yawBin < 0 ? 0 : yawBin;
 
                 // pitch
                 int32_t pitchBin = calorimeterPos.y() * static_cast<float_X>(numBinsPitch);
                 // catch out-of-range values
-                pitchBin = pitchBin >= numBinsPitch ? numBinsPitch - 1 : pitchBin;
+                pitchBin = pitchBin >= static_cast<int32_t>(numBinsPitch) ? numBinsPitch - 1 : pitchBin;
                 pitchBin = pitchBin < 0 ? 0 : pitchBin;
 
                 // energy

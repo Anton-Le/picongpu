@@ -1,4 +1,4 @@
-/* Copyright 2019-2021 Sergei Bastrakov
+/* Copyright 2019-2022 Sergei Bastrakov
  *
  * This file is part of PIConGPU.
  *
@@ -244,10 +244,12 @@ namespace picongpu
                      * @param parameters PML parameters for a local domain
                      */
                     UpdateEFunctor(FieldBox fieldPsiE, LocalParameters const parameters)
-                        : parameters(parameters)
-                        , fieldPsiE(fieldPsiE)
+                        : fieldPsiE(fieldPsiE)
+                        , parameters(parameters)
                     {
                     }
+
+                    UpdateEFunctor(const UpdateEFunctor&) = default;
 
                     /** Update electric field at the given position
                      *
@@ -339,11 +341,13 @@ namespace picongpu
                      * up-to-date
                      */
                     UpdateBHalfFunctor(FieldBox fieldPsiB, LocalParameters const parameters, bool updatePsiB)
-                        : parameters(parameters)
-                        , fieldPsiB(fieldPsiB)
+                        : fieldPsiB(fieldPsiB)
+                        , parameters(parameters)
                         , updatePsiB(updatePsiB)
                     {
                     }
+
+                    UpdateBHalfFunctor(const UpdateBHalfFunctor&) = default;
 
                     /** Update magnetic field at the given position
                      *

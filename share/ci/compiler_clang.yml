@@ -2,9 +2,11 @@
 #   [clang++-X] : X = {4.0, 5.0, 6.0, 7, 8, 9, 10, 11}
 
 .base_clang:
-  image: registry.gitlab.com/hzdr/crp/alpaka-group-container/alpaka-ci-${CI_CONTAINER_NAME}-clang-pic:${CONTAINER_TAG}
+  image: registry.hzdr.de/crp/alpaka-group-container/alpaka-ci-${CI_CONTAINER_NAME}-clang-pic:${CONTAINER_TAG}
   variables:
     GIT_SUBMODULE_STRATEGY: normal
+    # ISAAC is not supporting CPU
+    DISABLE_ISAAC: "yes"
   script:
     - apt update
     - apt install -y curl libjpeg-dev

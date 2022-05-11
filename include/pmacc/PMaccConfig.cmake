@@ -1,4 +1,4 @@
-# Copyright 2015-2021 Erik Zenker, Rene Widera, Axel Huebl
+# Copyright 2015-2022 Erik Zenker, Rene Widera, Axel Huebl, Jan Stephan
 #
 # This file is part of PMacc.
 #
@@ -29,7 +29,7 @@
 ###############################################################################
 # PMacc
 ###############################################################################
-cmake_minimum_required(VERSION 3.15.0)
+cmake_minimum_required(VERSION 3.18.0)
 
 # set helper pathes to find libraries and packages
 # Add specific hints
@@ -55,6 +55,12 @@ endif()
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "${PMACC_BUILD_TYPE}")
 unset(PMACC_BUILD_TYPE)
 
+set(PMACC_HIP_EMULATE_SHAREDMEM_ATOMICADD_32BIT "ON" CACHE STRING "Use atomicCas to emulate atomicAdd(float)")
+set_property(CACHE PMACC_HIP_EMULATE_SHAREDMEM_ATOMICADD_32BIT PROPERTY STRINGS "ON;OFF")
+
+if(PMACC_HIP_EMULATE_SHAREDMEM_ATOMICADD_32BIT STREQUAL ON)
+    set(PMacc_DEFINITIONS ${PMacc_DEFINITIONS} -DPMACC_HIP_EMULATE_SHAREDMEM_ATOMICADD_32BIT=1)
+endif()
 
 ################################################################################
 # CMake policies
@@ -106,7 +112,7 @@ endif()
 # CMake is not forwarding CMAKE_CUDA_ARCHITECTURES to the CMake CUDA compiler check
 # error: clang: error: cannot find libdevice for sm_20. Provide path to different CUDA installation via --cuda-path, or pass -nocudalib to build without linking with libdevice.
 # The workaround is parsing CMAKE_CUDA_ARCHITECTURES and forward command line parameter directly to clang++.
-if(ALPAKA_ACC_GPU_CUDA_ENABLE AND CMAKE_CUDA_COMPILER)
+if(alpaka_ACC_GPU_CUDA_ENABLE AND CMAKE_CUDA_COMPILER)
     string(REGEX MATCH "(.*clang.*)" IS_CLANGCUDA_COMPILER ${CMAKE_CUDA_COMPILER})
     if(IS_CLANGCUDA_COMPILER)
         foreach(_CUDA_ARCH_ELEM ${CMAKE_CUDA_ARCHITECTURES})
@@ -117,7 +123,7 @@ endif()
 
 # workaround for a CMake bug which is not handled in alpaka 0.7.0
 # https://github.com/alpaka-group/alpaka/pull/1423
-if(ALPAKA_ACC_GPU_CUDA_ENABLE)
+if(alpaka_ACC_GPU_CUDA_ENABLE)
         include(CheckLanguage)
         check_language(CUDA)
         # Use user selected CMake CXX compiler as cuda host compiler to avoid fallback to the default system CXX host compiler.
@@ -132,17 +138,17 @@ if(ALPAKA_ACC_GPU_CUDA_ENABLE)
 endif()
 
 # set path to internal
-set(PMACC_ALPAKA_PROVIDER "intern" CACHE STRING "Select which alpaka is used")
-set_property(CACHE PMACC_ALPAKA_PROVIDER PROPERTY STRINGS "intern;extern")
-mark_as_advanced(PMACC_ALPAKA_PROVIDER)
+set(PMACC_alpaka_PROVIDER "intern" CACHE STRING "Select which alpaka is used")
+set_property(CACHE PMACC_alpaka_PROVIDER PROPERTY STRINGS "intern;extern")
+mark_as_advanced(PMACC_alpaka_PROVIDER)
 
-if(${PMACC_ALPAKA_PROVIDER} STREQUAL "intern")
+if(${PMACC_alpaka_PROVIDER} STREQUAL "intern")
     list(INSERT CMAKE_MODULE_PATH 0 "${PMacc_DIR}/../../thirdParty/cupla/alpaka")
 endif()
 
 # Set alpaka CXX standard because the default is currently C++14.
-if(NOT DEFINED ALPAKA_CXX_STANDARD)
-    set(ALPAKA_CXX_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING "C++ standard version")
+if(NOT DEFINED alpaka_CXX_STANDARD)
+    set(alpaka_CXX_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING "C++ standard version")
 endif()
 
 ################################################################################
@@ -157,16 +163,16 @@ mark_as_advanced(PMACC_CUPLA_PROVIDER)
 # force activate CUDA backend if CMAKE_CUDA_ARCHITECTURES is defined
 if(
     (CMAKE_CUDA_ARCHITECTURES) AND
-    (NOT ALPAKA_ACC_CPU_B_SEQ_T_SEQ_ENABLE) AND
-    (NOT ALPAKA_ACC_CPU_B_SEQ_T_THREADS_ENABLE) AND
-    (NOT ALPAKA_ACC_CPU_B_SEQ_T_FIBERS_ENABLE) AND
-    (NOT ALPAKA_ACC_CPU_B_TBB_T_SEQ_ENABLE) AND
-    (NOT ALPAKA_ACC_CPU_B_OMP2_T_SEQ_ENABLE) AND
-    (NOT ALPAKA_ACC_CPU_B_SEQ_T_OMP2_ENABLE) AND
-    (NOT ALPAKA_ACC_CPU_BT_OMP4_ENABLE)
+    (NOT alpaka_ACC_CPU_B_SEQ_T_SEQ_ENABLE) AND
+    (NOT alpaka_ACC_CPU_B_SEQ_T_THREADS_ENABLE) AND
+    (NOT alpaka_ACC_CPU_B_SEQ_T_FIBERS_ENABLE) AND
+    (NOT alpaka_ACC_CPU_B_TBB_T_SEQ_ENABLE) AND
+    (NOT alpaka_ACC_CPU_B_OMP2_T_SEQ_ENABLE) AND
+    (NOT alpaka_ACC_CPU_B_SEQ_T_OMP2_ENABLE) AND
+    (NOT alpaka_ACC_CPU_BT_OMP4_ENABLE)
 )
-    option(ALPAKA_ACC_GPU_CUDA_ENABLE "Enable the CUDA GPU accelerator" ON)
-    option(ALPAKA_ACC_GPU_CUDA_ONLY_MODE
+    option(alpaka_ACC_GPU_CUDA_ENABLE "Enable the CUDA GPU accelerator" ON)
+    option(alpaka_ACC_GPU_CUDA_ONLY_MODE
         "Only back-ends using CUDA can be enabled in this mode \
         (This allows to mix alpaka code with native CUDA code)."
         ON)
@@ -179,12 +185,12 @@ else()
 endif()
 
 # disable CUDA only mode if cuda backend is disabled
-if((NOT ALPAKA_ACC_GPU_CUDA_ENABLE) AND ALPAKA_ACC_GPU_CUDA_ONLY_MODE)
-    set(ALPAKA_ACC_GPU_CUDA_ONLY_MODE OFF CACHE BOOL
+if((NOT alpaka_ACC_GPU_CUDA_ENABLE) AND alpaka_ACC_GPU_CUDA_ONLY_MODE)
+    set(alpaka_ACC_GPU_CUDA_ONLY_MODE OFF CACHE BOOL
         "Only back-ends using CUDA can be enabled in this mode \
         (This allows to mix alpaka code with native CUDA code)."
         FORCE)
-    message(WARNING "ALPAKA_ACC_GPU_CUDA_ONLY_MODE is set to OFF because cuda backend is not activated")
+    message(WARNING "alpaka_ACC_GPU_CUDA_ONLY_MODE is set to OFF because cuda backend is not activated")
 endif()
 
 # add possible indirect/transient library dependencies from alpaka backends
@@ -209,6 +215,8 @@ set(PMACC_CPU_ARCH $ENV{PMACC_CPU_ARCH} CACHE STRING
 if(CMAKE_COMPILER_IS_GNUCXX)
     if("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "ppc64le")
         set(PMACC_CPU_ARCH_TEMPLATE "-mcpu={} -mtune={}")
+    elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "aarch64")
+        set(PMACC_CPU_ARCH_TEMPLATE "-mcpu={}")
     else()
         set(PMACC_CPU_ARCH_TEMPLATE "-march={} -mtune={}")
     endif()
@@ -221,7 +229,11 @@ elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
     endif()
 # Clang
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    set(PMACC_CPU_ARCH_TEMPLATE "-march={} -mtune={}")
+    if("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "aarch64")
+        set(PMACC_CPU_ARCH_TEMPLATE "-mcpu={}")
+    else()
+        set(PMACC_CPU_ARCH_TEMPLATE "-march={} -mtune={}")
+    endif()
 # XL
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "XL")
     set(PMACC_CPU_ARCH_TEMPLATE "-qarch={}")
@@ -361,7 +373,7 @@ endif()
 # Find OpenMP
 ################################################################################
 
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND (ALPAKA_ACC_GPU_HIP_ENABLE OR (ALPAKA_ACC_GPU_CUDA_ENABLE AND ALPAKA_CUDA_COMPILER MATCHES "clang")))
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND (alpaka_ACC_GPU_HIP_ENABLE OR (alpaka_ACC_GPU_CUDA_ENABLE AND alpaka_CUDA_COMPILER MATCHES "clang")))
     # For HIP the problem is that in alpaka '::isnan(), ::sinh(), ::isfinite(), ::isinf()' is not found.
     # The reason could be that if OpenMP is activated clang is using math C headers where all of these functions are macros.
     message(WARNING "OpenMP host side acceleration is disabled: CUDA/HIP compilation with clang is not supporting OpenMP.")
@@ -377,14 +389,14 @@ endif()
 # Find mallocMC
 ################################################################################
 
-if(ALPAKA_ACC_GPU_CUDA_ENABLE OR ALPAKA_ACC_GPU_HIP_ENABLE)
-    set(mallocMC_ALPAKA_PROVIDER "extern" CACHE STRING "Select which alpaka is used for mallocMC")
-    find_package(mallocMC 2.5.0 QUIET)
+if(alpaka_ACC_GPU_CUDA_ENABLE OR alpaka_ACC_GPU_HIP_ENABLE)
+    set(mallocMC_alpaka_PROVIDER "extern" CACHE STRING "Select which alpaka is used for mallocMC")
+    find_package(mallocMC 2.6.0 QUIET)
 
     if(NOT mallocMC_FOUND)
         message(STATUS "Using mallocMC from thirdParty/ directory")
         set(MALLOCMC_ROOT "${PMacc_DIR}/../../thirdParty/mallocMC")
-        find_package(mallocMC 2.5.0 REQUIRED)
+        find_package(mallocMC 2.6.0 REQUIRED)
     endif(NOT mallocMC_FOUND)
 
     set(PMacc_INCLUDE_DIRS ${PMacc_INCLUDE_DIRS} ${mallocMC_INCLUDE_DIRS})

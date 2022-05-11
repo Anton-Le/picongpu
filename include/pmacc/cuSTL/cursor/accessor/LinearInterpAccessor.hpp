@@ -1,4 +1,4 @@
-/* Copyright 2015-2021 Heiko Burau
+/* Copyright 2015-2022 Heiko Burau
  *
  * This file is part of PMacc.
  *
@@ -52,6 +52,10 @@ namespace pmacc
             HDINLINE LinearInterpAccessor(const Cursor& cursor) : cursor(cursor)
             {
             }
+
+            HDINLINE LinearInterpAccessor(const LinearInterpAccessor&) = default;
+
+            HDINLINE LinearInterpAccessor& operator=(const LinearInterpAccessor&) = default;
 
             template<typename T_Position>
             HDINLINE Reference operator()(const T_Position pos) const

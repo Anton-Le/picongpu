@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Axel Huebl, Heiko Burau, Rene Widera
+/* Copyright 2013-2022 Axel Huebl, Heiko Burau, Rene Widera
  *
  * This file is part of PMacc.
  *
@@ -46,6 +46,8 @@ namespace pmacc
             , originalSize(originalSize)
         {
         }
+
+        HDINLINE DataBoxDim1Access(DataBoxDim1Access const&) = default;
 
         HDINLINE RefValueType operator()(DataSpace<DIM1> const& idx = {}) const
         {

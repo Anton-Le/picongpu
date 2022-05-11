@@ -1,4 +1,4 @@
-/* Copyright 2020-2021 Sergei Bastrakov
+/* Copyright 2020-2022 Sergei Bastrakov
  *
  * This file is part of PIConGPU.
  *
@@ -24,9 +24,10 @@
 #include "picongpu/fields/Fields.hpp"
 #include "picongpu/fields/MaxwellSolver/FDTD/FDTD.def"
 #include "picongpu/fields/absorber/Absorber.hpp"
-#include "picongpu/fields/incidentField/Profiles.hpp"
+#include "picongpu/fields/incidentField/Functors.hpp"
 #include "picongpu/fields/incidentField/Solver.kernel"
 #include "picongpu/fields/incidentField/Traits.hpp"
+#include "picongpu/fields/incidentField/profiles/profiles.hpp"
 #include "picongpu/traits/GetCurl.hpp"
 
 #include <pmacc/mappings/kernel/AreaMapping.hpp>
@@ -91,9 +92,6 @@ namespace picongpu
                     //! Time increment in the target field, in iterations
                     float_X timeIncrementIteration;
 
-                    //! Whether there is an active (non-none) min source for each axis
-                    pmacc::math::Vector<bool, simDim> hasMinSource;
-
                     //! Cell description for kernels
                     MappingDesc const cellDescription;
                 };
@@ -125,31 +123,31 @@ namespace picongpu
                     auto const exPosition = traits::FieldPosition<cellType::Yee, FieldE>{}()[0];
                     PMACC_VERIFY_MSG(
                         exPosition[0] == 0.5_X,
-                        "incident field source does not support the used Yee grid layout");
+                        "incident field profile does not support the used Yee grid layout");
 
-                    // Ensure gap along the current axis is large enough that we don't touch the absorber area
+                    // Ensure offset along the current axis is large enough that we don't touch the absorber area
+                    auto const axis = updateFunctor.axis;
                     auto const margin = static_cast<int32_t>(updateFunctor.margin);
-                    if((updateFunctor.direction > 0) && (GAP_FROM_ABSORBER[updateFunctor.axis][0] + 1 < margin))
+                    // Index of the boundary in 2d arrays like absorber thickness
+                    auto const boundaryIdx = (updateFunctor.direction > 0) ? 0 : 1;
+                    auto const& absorber = fields::absorber::Absorber::get();
+                    auto const absorberThickness = absorber.getGlobalThickness()(axis, boundaryIdx);
+                    auto const minAllowedOffset = absorberThickness + margin - 1;
+                    if(OFFSET[axis][boundaryIdx] < minAllowedOffset)
                         throw std::runtime_error(
-                            "Incident field GAP_FROM_ABSORBER[" + std::to_string(updateFunctor.axis)
-                            + "][0] is too small for used field solver, must be at least "
-                            + std::to_string(margin - 1));
-                    if((updateFunctor.direction < 0) && (GAP_FROM_ABSORBER[updateFunctor.axis][1] + 1 < margin))
-                        throw std::runtime_error(
-                            "Incident field GAP_FROM_ABSORBER[" + std::to_string(updateFunctor.axis)
-                            + "][1] is too small for used field solver, must be at least "
-                            + std::to_string(margin - 1));
+                            "Incident field OFFSET[" + std::to_string(axis) + "][" + std::to_string(boundaryIdx)
+                            + "] is too small for used field solver and absorber, must be at least "
+                            + std::to_string(minAllowedOffset));
 
                     /* Current implementation requires all updated values (along the active axis) to be inside the same
                      * local domain
                      */
                     auto const& subGrid = Environment<simDim>::get().SubGrid();
-                    auto const localDomainSize = subGrid.getLocalDomain().size[updateFunctor.axis];
-                    if((beginLocalUserIdx[updateFunctor.axis] + 1 < margin)
-                       || (beginLocalUserIdx[updateFunctor.axis] + margin > localDomainSize))
+                    auto const localDomainSize = subGrid.getLocalDomain().size[axis];
+                    if((beginLocalUserIdx[axis] + 1 < margin) || (beginLocalUserIdx[axis] + margin > localDomainSize))
                         throw std::runtime_error(
                             "The Huygens surface for incident field generation is too close to a local domain border."
-                            "Adjust GAP_FROM_ABSORBER or grid distribution over gpus.");
+                            "Adjust OFFSET or grid distribution over gpus.");
                 }
 
                 /** Update a field with the given incidentField normally to the given axis
@@ -187,21 +185,14 @@ namespace picongpu
                      */
                     auto const& subGrid = Environment<simDim>::get().SubGrid();
                     auto const globalDomainOffset = subGrid.getGlobalDomain().offset;
-                    auto beginUserIdx = parameters.offsetMinBorder + globalDomainOffset;
-                    /* Total field in positive direction needs to have the begin adjusted by one to get the first
-                     * index inside the respective region.
-                     * Here we want to shift only for axes with active positive-direction source.
-                     * So for other boundaries the Huygens surface is effectively pushed one cell outside.
-                     * We do it to avoid creating artificial non-uniformities at the edges.
-                     * (Example: consider there is only XMin source and no YMin, no ZMin.
-                     * Then the XMin source is applied for y = beginUserIdx.y() and z = beginUserIdx.z() as usual.
-                     * If we always shifted by 1 in all directions, it would have made those layers special
-                     * and caused unnecessary edge effects.)
+                    /* Add extra 1 to account for 0.75 Huygens surface shift.
+                     * However, the shift is not reverted for min-border row of B due to our Yee grid configuration.
                      */
-                    if(isUpdatedFieldTotal && parameters.direction > 0)
-                        for(uint32_t d = 0; d < simDim; d++)
-                            if(parameters.hasMinSource[d])
-                                beginUserIdx[d]++;
+                    auto beginUserIdx
+                        = parameters.offsetMinBorder + globalDomainOffset + pmacc::DataSpace<simDim>::create(1);
+                    ;
+                    if(!isUpdatedFieldTotal && (parameters.direction > 0))
+                        beginUserIdx[T_axis] -= 1;
                     auto endUserIdx = subGrid.getGlobalDomain().size - parameters.offsetMaxBorder + globalDomainOffset;
 
                     // Prepare update functor type
@@ -266,9 +257,8 @@ namespace picongpu
                     auto endGridIdx = endLocalUserIdx + numGuardCells;
 
                     // Indexing is done, now prepare the update functor
-                    auto functor = Functor{incidentField.getUnit()};
+                    auto functor = Functor{parameters.sourceTimeIteration, incidentField.getUnit()};
                     functor.updatedField = dataBox;
-                    functor.currentStep = parameters.sourceTimeIteration;
                     functor.isUpdatedFieldTotal = isUpdatedFieldTotal;
                     functor.direction = parameters.direction;
                     /* Shift between local grid idx and fractional total cell idx that a user functor needs:
@@ -292,7 +282,8 @@ namespace picongpu
                     functor.incidentComponent2 = dir1;
 
                     // Coefficients for the respective terms
-                    float_X const coeffBase = curlCoefficient / cellSize[T_axis];
+                    float_X const directionSign = (parameters.direction > 0.0_X ? 1.0_X : -1.0_X);
+                    float_X const coeffBase = curlCoefficient / cellSize[T_axis] * directionSign;
                     functor.coeff1[dir1] = coeffBase;
                     functor.coeff2[dir2] = -coeffBase;
 
@@ -318,7 +309,7 @@ namespace picongpu
                     (gridBlocks, numWorkers)(functor, beginGridIdx, endGridIdx);
                 }
 
-                /** Update a field with the given incidentField normally to the given axis
+                /** Functor to update a field with the given incidentField normally to the given axis
                  *
                  * After the sliding window started moving, does nothing for the y boundaries.
                  *
@@ -335,48 +326,50 @@ namespace picongpu
                     typename T_UpdatedField,
                     typename T_IncidentField,
                     typename T_Curl,
-                    typename T_FunctorIncidentField,
-                    uint32_t T_axis>
-                inline void callUpdateField(Parameters<T_axis> const& parameters, float_X const curlCoefficient)
+                    typename T_FunctorIncidentField>
+                struct CallUpdateField
                 {
-                    // IncidentField generation at y boundaries cannot be performed once the window started moving
-                    const uint32_t numSlides = MovingWindow::getInstance().getSlideCounter(
-                        static_cast<uint32_t>(parameters.sourceTimeIteration));
-                    bool const boxHasSlided = (numSlides != 0);
-                    if(!((T_axis == 1) && boxHasSlided))
-                        updateField<T_UpdatedField, T_IncidentField, T_Curl, T_FunctorIncidentField>(
-                            parameters,
-                            curlCoefficient);
-                }
+                    template<uint32_t T_axis>
+                    void operator()(Parameters<T_axis> const& parameters, float_X const curlCoefficient)
+                    {
+                        // IncidentField generation at y boundaries cannot be performed once the window started moving
+                        const uint32_t numSlides = MovingWindow::getInstance().getSlideCounter(
+                            static_cast<uint32_t>(parameters.sourceTimeIteration));
+                        bool const boxHasSlided = (numSlides != 0);
+                        if(!((T_axis == 1) && boxHasSlided))
+                            updateField<T_UpdatedField, T_IncidentField, T_Curl, T_FunctorIncidentField>(
+                                parameters,
+                                curlCoefficient);
+                    }
+                };
 
-                /** Functor to apply contribution of the incidentField functor source to the E field
+                /** Partial specialization of functor to update a field with the given incidentField normally to the
+                 * given axis for zero functor
                  *
-                 * @tparam T_Source source type: Source<...> or None
+                 * The general implementation works in this case and does nothing as it should.
+                 * We provide specialization to avoid compiling and running in this case and short-circuit to doing
+                 * nothing.
+                 *
+                 * @tparam T_UpdatedField updatedField type (FieldE or FieldB)
+                 * @tparam T_IncidentField incidentField type (FieldB or FieldE)
+                 * @tparam T_Curl curl(incidentField) functor type
+                 * @tparam T_axis boundary axis, 0 = x, 1 = y, 2 = z
                  */
-                template<typename T_Source>
-                struct UpdateE;
-
-                //! Functor to apply contribution of the None incidentField functor to the E field
-                template<>
-                struct UpdateE<None>
+                template<typename T_UpdatedField, typename T_IncidentField, typename T_Curl>
+                struct CallUpdateField<T_UpdatedField, T_IncidentField, T_Curl, ZeroFunctor>
                 {
-                    /** Apply contribution of the None incidentField functor to the E field
-                     *
-                     * @tparam T_Parameters parameters type
-                     */
-                    template<typename T_Parameters>
-                    void operator()(T_Parameters const&)
+                    template<uint32_t T_axis>
+                    void operator()(Parameters<T_axis> const& /* parameters */, float_X const /* curlCoefficient */)
                     {
                     }
                 };
 
-                /** Functor to apply contribution of the incidentField source functor to the E field
+                /** Functor to apply contribution of the incidentField functor source to the E field
                  *
-                 * @tparam T_FunctorIncidentE functor for the incident E field (not used)
-                 * @tparam T_FunctorIncidentB functor for the incident B field
+                 * @tparam T_FunctorIncidentB incident B source functor type
                  */
-                template<typename T_FunctorIncidentE, typename T_FunctorIncidentB>
-                struct UpdateE<Source<T_FunctorIncidentE, T_FunctorIncidentB>>
+                template<typename T_FunctorIncidentB>
+                struct UpdateE
                 {
                     /** Apply contribution of the incidentField source functor to the E field
                      *
@@ -396,7 +389,7 @@ namespace picongpu
                         using UpdatedField = picongpu::FieldE;
                         using IncidentField = picongpu::FieldB;
                         using Curl = traits::GetCurlB<Solver>::type;
-                        callUpdateField<UpdatedField, IncidentField, Curl, T_FunctorIncidentB>(
+                        CallUpdateField<UpdatedField, IncidentField, Curl, T_FunctorIncidentB>{}(
                             parameters,
                             curlCoefficient);
                     }
@@ -404,32 +397,10 @@ namespace picongpu
 
                 /** Functor to apply contribution of the incidentField source functor to the B field
                  *
-                 * @tparam T_Source source type: Source<...> or None
+                 * @tparam T_FunctorIncidentE incident E source functor type
                  */
-                template<typename T_Source>
-                struct UpdateB;
-
-                //! Functor to apply contribution of the None incidentField functor to the B field
-                template<>
-                struct UpdateB<None>
-                {
-                    /** Apply contribution of the None incidentField functor to the B field
-                     *
-                     * @tparam T_Parameters parameters type
-                     */
-                    template<typename T_Parameters>
-                    void operator()(T_Parameters const&)
-                    {
-                    }
-                };
-
-                /** Functor to apply contribution of the incidentField source functor to the B field
-                 *
-                 * @tparam T_FunctorIncidentE functor for the incident E field
-                 * @tparam T_FunctorIncidentB functor for the incident B field (not used)
-                 */
-                template<typename T_FunctorIncidentE, typename T_FunctorIncidentB>
-                struct UpdateB<Source<T_FunctorIncidentE, T_FunctorIncidentB>>
+                template<typename T_FunctorIncidentE>
+                struct UpdateB
                 {
                     /** Apply contribution of the incidentField source functor to the B field
                      *
@@ -448,7 +419,7 @@ namespace picongpu
                         using UpdatedField = picongpu::FieldB;
                         using IncidentField = picongpu::FieldE;
                         using Curl = traits::GetCurlE<Solver>::type;
-                        callUpdateField<UpdatedField, IncidentField, Curl, T_FunctorIncidentE>(
+                        CallUpdateField<UpdatedField, IncidentField, Curl, T_FunctorIncidentE>{}(
                             parameters,
                             curlCoefficient);
                     }
@@ -459,7 +430,9 @@ namespace picongpu
             /** Solver for incident fields to be called inside an FDTD Maxwell's solver
              *
              * It uses the total field / scattered field technique for FDTD solvers.
-             * Implementation is based on
+             * Implementation is based on two sources:
+             * A. Taflove, S.C. Hagness. Computational Electrodynamics. The Finite-Difference Time-Domain Method. Third
+             * Edition. Artech house (2005). Chapter 5.
              * M. Potter, J.-P. Berenger. A Review of the Total Field/Scattered Field Technique for the FDTD Method.
              * FERMAT, Volume 19, Article 1, 2017.
              *
@@ -467,9 +440,11 @@ namespace picongpu
              * It is composed of six axis-aligned plane segments in 3d or four axis-aligned line segments in 2d.
              * So it is parallel to the interface between the absorber area and internal non-absorbing area.
              * The position of the Huygens surface is controlled by offset from the interface inwards.
-             * This offset is a sum of the user-specified gap and 0.75 of a cell into the internal area from each side.
+             * Extra 0.75 of a cell shift is applied towards the internal area from each side.
              * (The choice of 0.75 is arbitrary by this implementation, only required to be not in full or half cells).
-             * All gaps >= 0 are supported if the surface covers an internal volume of at least one full cell.
+             * Thus, the positioning and indexing matches that of [Taflove, Hagness].
+             * Offsets must be such that the Huygens surface is located outside of field absorber area and covers an
+             * internal volume of at least one full cell.
              *
              * In the internal volume bounded by the Huygens surface, the E and B fields are so-called full fields.
              * They are a combined result of incoming incident fields and the internally happening dynamics.
@@ -488,20 +463,15 @@ namespace picongpu
                  */
                 Solver(MappingDesc const cellDescription) : cellDescription(cellDescription)
                 {
-                    /* Compute offsets from global domain borders, without guards.
+                    /* Read offsets from global domain borders, without guards.
                      * These can end up being outside of the local domain, it is handled later.
                      */
-                    auto const& absorber = fields::absorber::Absorber::get();
-                    absorber::Thickness absorberThickness = absorber.getGlobalThickness();
                     for(uint32_t axis = 0u; axis < simDim; ++axis)
                     {
-                        offsetMinBorder[axis] = absorberThickness(axis, 0) + GAP_FROM_ABSORBER[axis][0];
-                        offsetMaxBorder[axis] = absorberThickness(axis, 1) + GAP_FROM_ABSORBER[axis][1];
+                        offsetMinBorder[axis] = OFFSET[axis][0];
+                        offsetMaxBorder[axis] = OFFSET[axis][1];
                     }
-                    hasMinSource[0] = !std::is_same_v<XMin, None>;
-                    hasMinSource[1] = !std::is_same_v<YMin, None>;
-                    if(simDim == 3)
-                        hasMinSource[2] = !std::is_same_v<ZMin, None>;
+                    checkVolume();
                 }
 
                 /** Apply contribution of the incident B field to the E field update by one time step
@@ -513,9 +483,9 @@ namespace picongpu
                  */
                 void updateE(float_X const sourceTimeIteration)
                 {
-                    updateE<0, XMin, XMax>(sourceTimeIteration);
-                    updateE<1, YMin, YMax>(sourceTimeIteration);
-                    updateE<2, ZMin, ZMax>(sourceTimeIteration);
+                    updateE<0, XMinProfile, XMaxProfile>(sourceTimeIteration);
+                    updateE<1, YMinProfile, YMaxProfile>(sourceTimeIteration);
+                    updateE<2, ZMinProfile, ZMaxProfile>(sourceTimeIteration);
                 }
 
                 /** Apply contribution of the incident E field to the B field update by half a time step
@@ -530,69 +500,119 @@ namespace picongpu
                  */
                 void updateBHalf(float_X const sourceTimeIteration)
                 {
-                    updateBHalf<0, XMin, XMax>(sourceTimeIteration);
-                    updateBHalf<1, YMin, YMax>(sourceTimeIteration);
-                    updateBHalf<2, ZMin, ZMax>(sourceTimeIteration);
+                    updateBHalf<0, XMinProfile, XMaxProfile>(sourceTimeIteration);
+                    updateBHalf<1, YMinProfile, YMaxProfile>(sourceTimeIteration);
+                    updateBHalf<2, ZMinProfile, ZMaxProfile>(sourceTimeIteration);
                 }
 
             private:
+                //! Check if volume bounded by the Huygens surface is positive, print a warning otherwise
+                void checkVolume() const
+                {
+                    // Skip the check when no incident field sources enabled
+                    if(!isEnabled())
+                        return;
+
+                    // Do the check once as its result is always same
+                    static bool checkDone = false;
+                    if(checkDone)
+                        return;
+                    checkDone = true;
+                    bool isPrinting = (Environment<simDim>::get().GridController().getGlobalRank() == 0);
+                    if(isPrinting)
+                    {
+                        auto const& subGrid = Environment<simDim>::get().SubGrid();
+                        auto const totalDomainSize = subGrid.getTotalDomain().size;
+                        for(uint32_t axis = 0; axis < simDim; axis++)
+                            if(offsetMinBorder[axis] + offsetMaxBorder[axis] + 2 > totalDomainSize[axis])
+                            {
+                                log<picLog::PHYSICS>(
+                                    "Warning: volume bounded by the Huygens surface is zero, no incident "
+                                    "field will be generated\n");
+                                break;
+                            }
+                    }
+                }
+
+                //! Return if incident field is enabled in the simulation i.e. there exists a non-None profile
+                static bool isEnabled()
+                {
+                    using profiles::None;
+                    auto const isEnabledX = !(std::is_same_v<XMinProfile, None> && std::is_same_v<XMaxProfile, None>);
+                    auto const isEnabledY = !(std::is_same_v<YMinProfile, None> && std::is_same_v<YMaxProfile, None>);
+                    auto const isEnabledZ = !(std::is_same_v<ZMinProfile, None> && std::is_same_v<ZMaxProfile, None>);
+                    return isEnabledX || isEnabledY || isEnabledZ;
+                }
+
                 /** Apply contribution of the incident B field to the E field update by one time step
                  *
                  * @tparam T_axis boundary axis, 0 = x, 1 = y, 2 = z
-                 * @tparam T_MinSource source type for the min boundary along the axis: Source<...> or None
-                 * @tparam T_MaxSource source type for the max boundary along the axis: Source<...> or None
+                 * @tparam T_MinProfile profile type for the min boundary along the axis
+                 * @tparam T_MaxProfile profile type for the max boundary along the axis
                  *
                  * @param sourceTimeIteration time iteration at which the source incident B field
                  *                            (not the target E field!) values will be calculated
                  */
-                template<uint32_t T_axis, typename T_MinSource, typename T_MaxSource>
+                template<uint32_t T_axis, typename T_MinProfile, typename T_MaxProfile>
                 void updateE(float_X const sourceTimeIteration)
                 {
                     auto parameters = detail::Parameters<T_axis>{cellDescription};
                     parameters.offsetMinBorder = offsetMinBorder;
                     parameters.offsetMaxBorder = offsetMaxBorder;
-                    parameters.hasMinSource = hasMinSource;
                     parameters.direction = 1.0_X;
                     parameters.sourceTimeIteration = sourceTimeIteration;
                     parameters.timeIncrementIteration = 1.0_X;
-                    using UpdateMin = typename detail::UpdateE<T_MinSource>;
+                    using FunctorIncidentBMin = detail::FunctorIncidentB<T_MinProfile, T_axis, 1>;
+                    using UpdateMin = typename detail::UpdateE<FunctorIncidentBMin>;
                     UpdateMin{}(parameters);
                     parameters.direction = -1.0_X;
-                    using UpdateMax = typename detail::UpdateE<T_MaxSource>;
+                    using FunctorIncidentBMax = detail::FunctorIncidentB<T_MaxProfile, T_axis, -1>;
+                    using UpdateMax = typename detail::UpdateE<FunctorIncidentBMax>;
                     UpdateMax{}(parameters);
                 }
 
                 /** Apply contribution of the incident E field to the B field update by half a time step
                  *
                  * @tparam T_axis boundary axis, 0 = x, 1 = y, 2 = z
-                 * @tparam T_MinSource source type for the min boundary along the axis: Source<...> or None
-                 * @tparam T_MaxSource source type for the max boundary along the axis: Source<...> or None
+                 * @tparam T_MinProfile profile type for the min boundary along the axis
+                 * @tparam T_MaxProfile profile type for the max boundary along the axis
                  *
                  * @param sourceTimeIteration time iteration at which the source incident E field
                  *                            (not the target B field!) values will be calculated
                  */
-                template<uint32_t T_axis, typename T_MinSource, typename T_MaxSource>
+                template<uint32_t T_axis, typename T_MinProfile, typename T_MaxProfile>
                 void updateBHalf(float_X const sourceTimeIteration)
                 {
                     auto parameters = detail::Parameters<T_axis>{cellDescription};
                     parameters.offsetMinBorder = offsetMinBorder;
                     parameters.offsetMaxBorder = offsetMaxBorder;
-                    parameters.hasMinSource = hasMinSource;
                     parameters.direction = 1.0_X;
                     parameters.sourceTimeIteration = sourceTimeIteration;
                     parameters.timeIncrementIteration = 0.5_X;
-                    using UpdateMin = typename detail::UpdateB<T_MinSource>;
+                    using FunctorIncidentEMin = detail::FunctorIncidentE<T_MinProfile, T_axis, 1>;
+                    using UpdateMin = typename detail::UpdateB<FunctorIncidentEMin>;
                     UpdateMin{}(parameters);
                     parameters.direction = -1.0_X;
-                    using UpdateMax = typename detail::UpdateB<T_MaxSource>;
+                    using FunctorIncidentEMax = detail::FunctorIncidentE<T_MaxProfile, T_axis, -1>;
+                    using UpdateMax = typename detail::UpdateB<FunctorIncidentEMax>;
                     UpdateMax{}(parameters);
                 }
 
-                //! ZMin type to be used, shadows ZMin from .param on purpose to handle 2d and 3d uniformly
-                using ZMin = detail::ZMin;
+                /** Profiles to be used by implementation
+                 *
+                 * Make aliases to user-provided types for decoupling and uniformity of 2d and 3d cases
+                 *
+                 * @{
+                 */
 
-                //! ZMax type to be used, shadows ZMax from .param on purpose to handle 2d and 3d uniformly
-                using ZMax = detail::ZMax;
+                using XMinProfile = XMin;
+                using XMaxProfile = XMax;
+                using YMinProfile = YMin;
+                using YMaxProfile = YMax;
+                using ZMinProfile = std::conditional_t<simDim == 3, ZMin, profiles::None>;
+                using ZMaxProfile = std::conditional_t<simDim == 3, ZMax, profiles::None>;
+
+                /** @} */
 
                 /** Offset of the Huygens surface from min border of the global domain
                  *
@@ -607,9 +627,6 @@ namespace picongpu
                  * Counted in full cells, the surface is additionally offset by 0.75 cells
                  */
                 pmacc::DataSpace<simDim> offsetMaxBorder;
-
-                //! Whether there is an active (non-none) min source for each axis
-                pmacc::math::Vector<bool, simDim> hasMinSource;
 
                 //! Cell description for kernels
                 MappingDesc const cellDescription;

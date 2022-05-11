@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Felix Schmitt, Heiko Burau, Rene Widera, Sergei Bastrakov
+/* Copyright 2013-2022 Felix Schmitt, Heiko Burau, Rene Widera, Sergei Bastrakov
  *
  * This file is part of PMacc.
  *
@@ -59,6 +59,8 @@ namespace pmacc
         HINLINE AreaMapping(BaseClass base) : BaseClass(base)
         {
         }
+
+        AreaMapping(const AreaMapping&) = default;
 
         /** Generate grid dimension information for alpaka kernel calls
          *

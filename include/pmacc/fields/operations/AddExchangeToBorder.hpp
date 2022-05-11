@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Axel Huebl, Heiko Burau, Rene Widera, Marco Garten,
+/* Copyright 2013-2022 Axel Huebl, Heiko Burau, Rene Widera, Marco Garten,
  *                     Benjamin Worpitz
  *
  * This file is part of PMacc.
@@ -69,7 +69,7 @@ namespace pmacc
                     typename T_Acc>
                 DINLINE void operator()(
                     T_Acc const& acc,
-                    T_DestBox& destBox,
+                    T_DestBox destBox,
                     T_ExchangeBox const& exchangeBox,
                     T_Extent const& exchangeSize,
                     T_Extent const& direction,

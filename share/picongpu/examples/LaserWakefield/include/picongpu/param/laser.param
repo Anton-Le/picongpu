@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Axel Huebl, Anton Helm, Rene Widera, Richard Pausch, Alexander Debus
+/* Copyright 2013-2022 Axel Huebl, Anton Helm, Rene Widera, Richard Pausch, Alexander Debus
  *
  * This file is part of PIConGPU.
  *
@@ -31,6 +31,8 @@
  *                          focusing)
  *  - Polynom             : a polynomial laser envelope
  *  - ExpRampWithPrepulse : wavepacket with exponential upramps and prepulse
+ *  - PulseFromSpectrum   : Gaussian pulse allowing to set 2nd and 3rd order
+ *                          dispersion by spectral phase (GDD and TOD)
  *
  * In the end, this file needs to define a `Selected` class in namespace
  * `picongpu::fields::laserProfiles`. A typical profile consists of a
@@ -68,11 +70,15 @@ namespace picongpu
                 //! Use only the 0th Laguerremode for a standard Gaussian
                 static constexpr uint32_t MODENUMBER = 0;
                 PMACC_CONST_VECTOR(float_X, MODENUMBER + 1, LAGUERREMODES, 1.0);
+                PMACC_CONST_VECTOR(float_X, MODENUMBER + 1, LAGUERREPHASES, 1.0);
                 // This is just an example for a more complicated set of Laguerre modes
                 // constexpr uint32_t MODENUMBER = 12;
                 // PMACC_CONST_VECTOR(float_X, MODENUMBER + 1, LAGUERREMODES, -1.0, 0.0300519, 0.319461, -0.23783,
                 // 0.0954839, 0.0318653, -0.144547, 0.0249208, -0.111989, 0.0434385, -0.030038, -0.00896321,
                 // -0.0160788);
+                // PMACC_CONST_VECTOR(float_X, MODENUMBER + 1, LAGUERREPHASES, 0.0, 1.0344594, -0.9384701, -2.7384883,
+                // 0.0016872, 2.4563653, -0.312892, -1.7298303, -0.8039839, 3.0055385, -0.1503778, -9.6980362,
+                // -2.8122287);
 
             } // namespace gaussianBeam
 
@@ -145,6 +151,7 @@ namespace picongpu
                 static constexpr float_X LASER_PHASE = 0.0;
 
                 using LAGUERREMODES_t = gaussianBeam::LAGUERREMODES_t;
+                using LAGUERREPHASES_t = gaussianBeam::LAGUERREPHASES_t;
                 static constexpr uint32_t MODENUMBER = gaussianBeam::MODENUMBER;
 
                 /** Available polarisation types

@@ -1,4 +1,4 @@
-/* Copyright 2020-2021 Pawel Ordyna
+/* Copyright 2020-2022 Pawel Ordyna
  *
  * This file is part of PIConGPU.
  *
@@ -52,6 +52,8 @@ namespace picongpu
                     , m_iterOffset(iterOffset)
                 {
                 }
+
+                HDINLINE GetScatteringVector(const GetScatteringVector&) = default;
 
                 HDINLINE float2_X operator[](const uint32_t& idx)
                 {

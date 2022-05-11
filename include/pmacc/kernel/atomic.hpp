@@ -1,4 +1,4 @@
-/* Copyright 2015-2021 Rene Widera, Alexander Grund
+/* Copyright 2015-2022 Rene Widera, Alexander Grund
  *
  * This file is part of PMacc.
  *
@@ -84,7 +84,9 @@ namespace pmacc
                     ::atomicAddNoRet(ptr, value);
                 }
             };
-#elif(ALPAKA_ACC_GPU_HIP_ENABLED == 1 && (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) >= 403)
+#elif(                                                                                                                \
+    PMACC_HIP_EMULATE_SHAREDMEM_ATOMICADD_32BIT == 1 && ALPAKA_ACC_GPU_HIP_ENABLED == 1                               \
+    && (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) >= 403)
             /** HIP backend specialization for atomic add float
              *
              * atomicAdd(float*,float) into shared memory is very slow for HIP 4.3+.
@@ -268,11 +270,9 @@ namespace pmacc
         template<typename T_Type, typename T_Acc, typename T_Hierarchy>
         DINLINE void atomicAllExch(const T_Acc& acc, T_Type* ptr, const T_Type value, const T_Hierarchy& hierarchy)
         {
+#if CUPLA_DEVICE_COMPILE == 1
             const auto mask = alpaka::warp::activemask(acc);
             const auto leader = alpaka::ffs(acc, static_cast<std::make_signed_t<decltype(mask)>>(mask)) - 1;
-            alpaka::ignore_unused(leader);
-
-#if CUPLA_DEVICE_COMPILE == 1
             if(getLaneId() == leader)
 #endif
                 ::alpaka::atomicOp<::alpaka::AtomicExch>(acc, ptr, value, hierarchy);

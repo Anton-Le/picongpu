@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2013-2021 Axel Huebl, Richard Pausch, Rene Widera, Sergei Bastrakov, Klaus Steinger
+# Copyright 2013-2022 Axel Huebl, Richard Pausch, Rene Widera, Sergei Bastrakov, Klaus Steinger
 #
 # This file is part of PIConGPU.
 #
@@ -100,8 +100,6 @@ ln -s ../stdout output
 
 # cuda_memtest is available only on CUDA hardware
 
-if [ $? -eq 0 ] ; then
-  # Run PIConGPU
-  srun -K1 !TBG_dstPath/input/bin/picongpu !TBG_author !TBG_programParams
-fi
+# Run PIConGPU
+srun -K1 !TBG_dstPath/input/bin/picongpu !TBG_author !TBG_programParams
 

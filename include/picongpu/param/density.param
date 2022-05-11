@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Axel Huebl, Heiko Burau, Rene Widera, Felix Schmitt,
+/* Copyright 2013-2022 Axel Huebl, Heiko Burau, Rene Widera, Felix Schmitt,
  *                     Richard Pausch, Sergei Bastrakov
  *
  * This file is part of PIConGPU.
@@ -21,8 +21,30 @@
 /** @file
  *
  * Configure existing or define new normalized density profiles here.
- * During particle species creation in speciesInitialization.param,
+ * During particle species creation in `speciesInitialization.param`,
  * those profiles can be translated to spatial particle distributions.
+ *
+ * This profile is normalized to units of `picongpu::SI::BASE_DENSITY_SI`, also defined in this file.
+ * Note that it only operates with physical density, and does not concern macroparticles.
+ * The number and sampling of macroparticles per cell are defined independently of a density profile.
+ * Please refer to documentation of `picongpu::particles::CreateDensity<>` for further details on this interaction.
+ *
+ * Available profiles:
+ *  - HomogenousImpl          : homogeneous density in whole simulation volume
+ *  - GaussianImpl<>          : Gaussian profile in 'y', optionally with preceeding vacuum
+ *  - GaussianCloudImpl<>     : Gaussian profile in all axes, optionally with preceeding vacuum in 'y'
+ *  - LinearExponentialImpl<> : linear ramping of density in 'y' into exponential slope after
+ *  - SphereFlanksImpl<>      : composition of 1D profiles, each in form of
+ *                              exponential increasing flank, constant sphere, exponential decreasing flank
+ *  - EveryNthCellImpl<>      : checkerboard profile matching the grid, particles are only present in cells
+ *                              with the given stride from one another in all directions
+ *  - FreeFormulaImpl<>       : apply user-defined functor for calculating density,
+ *                              refer to `picongpu::densityProfiles::IProfile` for interface requirements
+ *  - FromOpenPMDImpl<>       : load density values from a given file, requires openPMD API dependency
+ *
+ * In the end, this file typically defines an alias for each density profile to be used.
+ * These aliases do not have to follow any naming convention, but serve as template parameters for
+ * invocations of `picongpu::particles::CreateDensity<>` in `speciesInitialization.param`.
  */
 
 #pragma once
@@ -223,6 +245,9 @@ namespace picongpu
         /* definition of sphere profile with flanks */
         using SphereFlanks = SphereFlanksImpl<SphereFlanksParam>;
 
+        /* definition of checkerboard density profile with particles every fourth cell in all directions */
+        using EveryFourthCell = EveryNthCellImpl<mCT::UInt32<4, 4, 4>>;
+
         /** Density values taken from an openPMD file
          *
          * The density values must be a scalar dataset of type float_X, type mismatch would cause errors.
@@ -236,6 +261,10 @@ namespace picongpu
         PMACC_STRUCT(
             FromOpenPMDParam,
             /** Path to the openPMD input file
+             *
+             * This value can alternatively be controlled at runtime by setting it to "" here and providing
+             * command-line option <species>_runtimeDensityFile. Refer to description of this command-line option for
+             * details. Note that runtime option only exists for this parameter, and not others in this struct.
              *
              * File-based iteration format is also supported, with the usual openPMD API naming scheme.
              *

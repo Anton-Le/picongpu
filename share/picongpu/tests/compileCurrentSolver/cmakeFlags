@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright 2013-2021 Axel Huebl, Rene Widera
+# Copyright 2013-2022 Axel Huebl, Rene Widera
 #
 # This file is part of PIConGPU.
 #
@@ -30,7 +30,7 @@
 #   - increase by 1, no gaps
 
 flags[0]="-DPARAM_OVERWRITES:LIST='-DPARAM_CURRENTSOLVER=EmZ<UsedParticleShape>;-DPARAM_PARTICLESHAPE=PQS'"
-flags[1]="-DPARAM_OVERWRITES:LIST='-DPARAM_CURRENTSOLVER=EmZ<UsedParticleShape>;-DPARAM_PARTICLESHAPE=PCS;-DPARAM_DIMENSION=DIM2'"
+flags[1]="-DPARAM_OVERWRITES:LIST='-DPARAM_CURRENTSOLVER=EZ<UsedParticleShape>;-DPARAM_PARTICLESHAPE=PCS;-DPARAM_DIMENSION=DIM2'"
 # Esirkepov and TSC is tested in most examples
 flags[2]="-DPARAM_OVERWRITES:LIST='-DPARAM_CURRENTSOLVER=Esirkepov<UsedParticleShape>;-DPARAM_PARTICLESHAPE=CIC'"
 flags[3]="-DPARAM_OVERWRITES:LIST='-DPARAM_CURRENTSOLVER=Esirkepov<UsedParticleShape>;-DPARAM_PARTICLESHAPE=TSC'"

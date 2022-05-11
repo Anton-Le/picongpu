@@ -1,4 +1,4 @@
-/* Copyright 2014-2021 Rene Widera
+/* Copyright 2014-2022 Rene Widera
  *
  * This file is part of PMacc.
  *
@@ -47,6 +47,8 @@ namespace pmacc
         HDINLINE DataBoxUnaryTransform(Base base) : Base(std::move(base))
         {
         }
+
+        HDINLINE DataBoxUnaryTransform(DataBoxUnaryTransform const&) = default;
 
         template<typename T_Index>
         HDINLINE ValueType operator()(const T_Index& idx) const

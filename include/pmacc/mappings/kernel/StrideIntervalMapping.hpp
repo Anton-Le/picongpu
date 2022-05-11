@@ -1,4 +1,4 @@
-/* Copyright 2021 Sergei Bastrakov
+/* Copyright 2021-2022 Sergei Bastrakov
  *
  * This file is part of PMacc.
  *
@@ -85,6 +85,8 @@ namespace pmacc
             , offset(DataSpace<dim>::create(0))
         {
         }
+
+        StrideIntervalMapping(const StrideIntervalMapping&) = default;
 
         /** Generate grid dimension information for alpaka kernel calls
          *

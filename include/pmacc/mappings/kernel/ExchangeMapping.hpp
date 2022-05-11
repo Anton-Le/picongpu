@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Felix Schmitt, Heiko Burau, Rene Widera
+/* Copyright 2013-2022 Felix Schmitt, Heiko Burau, Rene Widera
  *
  * This file is part of PMacc.
  *
@@ -68,6 +68,8 @@ namespace pmacc
         HINLINE ExchangeMapping(BaseClass base, uint32_t exchangeType) : BaseClass(base), exchangeType(exchangeType)
         {
         }
+
+        ExchangeMapping(const ExchangeMapping&) = default;
 
         /*get exchange type
          *@return exchange of this object

@@ -1,4 +1,4 @@
-/* Copyright 2014-2021 Axel Huebl, Felix Schmitt, Heiko Burau, Rene Widera
+/* Copyright 2014-2022 Axel Huebl, Felix Schmitt, Heiko Burau, Rene Widera
  *                     Benjamin Worpitz, Franz Poeschel
  *
  * This file is part of PIConGPU.
@@ -81,7 +81,7 @@ namespace picongpu
                  */
                 if(!isDomainBound)
                 {
-                    auto const field_layout = params->gridLayout;
+                    auto const field_layout = field.getGridLayout();
                     auto const field_no_guard = field_layout.getDataSpaceWithoutGuarding();
                     auto const elementCount = field_no_guard.productOfComponents();
 
@@ -138,7 +138,6 @@ namespace picongpu
 
                     log<picLog::INPUT_OUTPUT>("openPMD: Read from field '%1%'") % objectName;
 
-                    auto ndim = rc.getDimensionality();
                     ::openPMD::Offset start = asStandardVector<DataSpace<simDim>&, ::openPMD::Offset>(domain_offset);
                     ::openPMD::Extent count
                         = asStandardVector<DataSpace<simDim>&, ::openPMD::Extent>(local_domain_size);
@@ -215,7 +214,6 @@ namespace picongpu
 
                 /* load field without copying data to host */
                 auto field = dc.get<T_Field>(T_Field::getName(), true);
-                tp->gridLayout = field->getGridLayout();
 
                 /* load from openPMD */
                 bool const isDomainBound = traits::IsFieldDomainBound<T_Field>::value;

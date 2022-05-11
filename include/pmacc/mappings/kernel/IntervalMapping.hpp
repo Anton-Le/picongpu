@@ -1,4 +1,4 @@
-/* Copyright 2021 Sergei Bastrakov
+/* Copyright 2021-2022 Sergei Bastrakov
  *
  * This file is part of PMacc.
  *
@@ -68,6 +68,8 @@ namespace pmacc
             , numSupercells(numSupercells)
         {
         }
+
+        IntervalMapping(const IntervalMapping&) = default;
 
         /** Generate grid dimension information for alpaka kernel calls
          *

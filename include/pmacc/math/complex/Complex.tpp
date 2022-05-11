@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Heiko Burau, Rene Widera, Richard Pausch,
+/* Copyright 2013-2022 Heiko Burau, Rene Widera, Richard Pausch,
  *                     Alexander Debus, Benjamin Worpitz, Finn-Ole Carstens
  *
  * This file is part of PMacc.
@@ -127,7 +127,7 @@ namespace alpaka
 {
     namespace math
     {
-        namespace traits
+        namespace trait
         {
             template<typename T_Ctx, typename T_Type>
             struct Pow<T_Ctx, ::pmacc::math::Complex<T_Type>, T_Type, void>
@@ -238,7 +238,7 @@ namespace alpaka
                         / ::pmacc::math::Complex<T_Type>(type(0.), type(2.));
                 }
             };
-        } // namespace traits
+        } // namespace trait
     } // namespace math
 } // namespace alpaka
 

@@ -7,16 +7,79 @@
 picongpu.profile
 ================
 
-.. sectionauthor:: Axel Huebl
+.. sectionauthor:: Axel Huebl, Klaus Steiniger, Sergei Bastrakov
 
-Use a ``picongpu.profile`` file to set up your software environment without colliding with other software.
-Ideally, store that file directly in your ``$HOME/`` and source it after connecting to the machine:
+We recommend to use a ``picongpu.profile`` file, located directly in your ``$HOME/`` directory,
+to set up the environment within which PIConGPU will run by conviently performing
 
 .. code-block:: bash
 
    source $HOME/picongpu.profile
 
-We listed some example ``picongpu.profile`` files below which can be used to set up PIConGPU's dependencies on various HPC systems.
+on the command line after logging in to a system.
+PIConGPU is shipped with a number of ready-to-use profiles for different systems which are located in
+``etc/picongpu/<cluster>-<institute>/`` within PIConGPU's main folder.
+Have a look into this directory in order to see for which HPC systems profiles are already available.
+If you are working on one of these systems, just copy the respective ``*_picongpu.profile.example``
+from within this directory into your ``$HOME`` and make the necessary changes, such as e-mail address
+or PIConGPU source code location defined by ``$PICSRC``.
+If you are working on an HPC system for which no profile is available, feel free to create one and
+contribute it to PIConGPU by opening a pull request.
+
+A selection of available profiles is presented below, after some general notes on using CPUs.
+Beware, these may not be up-to-date with the latest available software on the respective system,
+as we do not have continuous access to all of these.
+
+General Notes on Using CPUs
+---------------------------
+
+On CPU systems we strongly recommend using MPI + OpenMP parallelization.
+It requires building PIConGPU with the OpenMP 2 backend.
+Additionally it is recommended to add an option for target architecture, for example, ``pic-build -b omp2b:znver3`` for AMD Zen3 CPUs.
+When building on a compute node or a same-architecture node, one could use ``-b omp2b:native`` instead.
+The default value for option ``-b`` can be set with environment variable ``$PIC_BACKEND`` in the profile.
+
+With respect to selecting an optimal MPI + OpenMP configuration please refer to documentation of your system.
+As a reasonable default strategy, we recommend running an MPI rank per NUMA node, using 1 or 2 OpenMP threads per core depending on simultaneous multithreading being enabled, and binding threads to cores through affinity settings.
+This approach is used, for example, in the ``defq`` partition of Hemera as shown below.
+
+The properties of OpenMP parallelization, such as number of threads used, are controlled via OpenMP environment variables.
+In particular, the number of OpenMP threads to be used (per MPI rank) can be set via ``$OMP_NUM_THREADS``.
+Beware that task launch wrappers used on your system may effectively override this setting.
+Particularly, a few systems require running PIConGPU with ``mpirun --bind-to none`` in order to properly use all CPU cores.
+
+For setting thread affinity, we provide a helper wrapper ``cpuNumaStarter.sh`` that should be applicable to most systems.
+
+Your Workstation
+----------------
+
+This is a very basic ``picongpu.profile`` enabling compilation on CPUs by setting the OpenMP backend, declaring commonly required directories,
+and providing default parameters for :ref:`TBG <usage-tbg>`.
+
+.. literalinclude:: profiles/bash/bash_picongpu.profile.example
+   :language: bash
+
+Crusher (ORNL)
+--------------
+
+**System overview:** `link <https://docs.olcf.ornl.gov/systems/crusher_quick_start_guide.html#system-overview>`_
+
+**Production directory:** usually ``$PROJWORK/$proj/`` (`link <https://docs.olcf.ornl.gov/systems/crusher_quick_start_guide.html#data-and-storage>`_).
+Note that ``$HOME`` is mounted on compute nodes as read-only.
+
+For this profile to work, you need to download the :ref:`PIConGPU source code <install-dependencies-picongpu>` and install :ref:`PNGwriter and openPMD <install-dependencies>` manually.
+
+MI250X GPUs using hipcc (recommended)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. literalinclude:: profiles/crusher-ornl/batch_hipcc_picongpu.profile.example
+   :language: bash
+
+MI250X GPUs using craycc
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. literalinclude:: profiles/crusher-ornl/batch_craycc_picongpu.profile.example
+  :language: bash
 
 Hemera (HZDR)
 -------------
@@ -26,6 +89,13 @@ Hemera (HZDR)
 **User guide:** *None*
 
 **Production directory:** ``/bigdata/hplsim/`` with ``external/``, ``scratch/``, ``development/`` and ``production/``
+
+Profile for HZDR's home cluster hemera.
+Sets up software environment, i.e. providing libraries to satisfy PIConGPU's dependencies, by loading modules,
+setting common paths and options, as well as defining the ``getDevice()`` and ``getNode()`` aliases.
+The latter are shorthands to request resources for an interactive session from the batch system.
+Together with the `-s bash` option of :ref:`TBG <usage-tbg>`, these allow to run PIConGPU interactively on an HPC system.
+
 
 For this profile to work, you need to download the :ref:`PIConGPU source code <install-dependencies-picongpu>` manually.
 
@@ -299,4 +369,21 @@ V100 GPUs (recommended)
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 .. literalinclude:: profiles/ascent-ornl/gpu_picongpu.profile.example
+   :language: bash
+   
+DICC (UM)
+---------
+
+**System overview:** `link <https://www.dicc.um.edu.my/>`_
+
+**User guide:** `link <https://confluence.dicc.um.edu.my/display/HPCDOCS/HPC+Documentation>`_
+
+**Production directory:** usually ``/lustre/user/<username>`` (`link <https://confluence.dicc.um.edu.my/display/HPCDOCS/Managing+Storage>`_)
+
+For these profiles to work, you need to download the :ref:`PIConGPU source code <install-dependencies-picongpu>`.
+
+Queue: gpu (8 x NVIDIA Tesla k10 GPUs)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. literalinclude:: profiles/dicc-um/gpu_picongpu.profile.example
    :language: bash

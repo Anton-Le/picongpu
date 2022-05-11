@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Heiko Burau, Rene Widera
+/* Copyright 2013-2022 Heiko Burau, Rene Widera
  *
  * This file is part of PMacc.
  *
@@ -69,6 +69,10 @@ namespace pmacc
                 , marker(marker)
             {
             }
+
+            HDINLINE Cursor(const Cursor&) = default;
+
+            HDINLINE Cursor& operator=(const Cursor& other) = default;
 
             /** access
              * @return Accessor's return type.

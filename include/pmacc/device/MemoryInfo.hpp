@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Felix Schmitt, Rene Widera
+/* Copyright 2013-2022 Felix Schmitt, Rene Widera
  *
  * This file is part of PMacc.
  *
@@ -81,11 +81,11 @@ namespace pmacc
              *
              *  @return true if the device memory is shared with the host else false
              */
-            bool isSharedMemoryPool(uint32_t const numRanksPerDevice, MPI_Comm mpiComm) const
+            bool isSharedMemoryPool(
+                [[maybe_unused]] uint32_t const numRanksPerDevice,
+                [[maybe_unused]] MPI_Comm mpiComm) const
             {
-                alpaka::ignore_unused(mpiComm);
 #if(PMACC_CUDA_ENABLED != 1 && ALPAKA_ACC_GPU_HIP_ENABLED != 1)
-                alpaka::ignore_unused(numRanksPerDevice);
                 return true;
 #else
                 if(numRanksPerDevice >= 2u)

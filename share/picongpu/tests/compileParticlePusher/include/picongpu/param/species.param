@@ -1,4 +1,4 @@
-/* Copyright 2014-2021 Rene Widera, Richard Pausch, Annegret Roeszler, Klaus Steiniger, Sergei Bastrakov
+/* Copyright 2014-2022 Rene Widera, Richard Pausch, Annegret Roeszler, Klaus Steiniger, Sergei Bastrakov
  *
  * This file is part of PIConGPU.
  *
@@ -68,6 +68,7 @@ namespace picongpu
      * - currentSolver::Esirkepov< SHAPE, STRATEGY > : particle shapes - CIC, TSC, PQS, PCS (1st to 4th order)
      * - currentSolver::VillaBune< SHAPE, STRATEGY > : particle shapes - CIC (1st order) only
      * - currentSolver::EmZ< SHAPE, STRATEGY >       : particle shapes - CIC, TSC, PQS, PCS (1st to 4th order)
+     * - currentSolver::EZ< SHAPE, STRATEGY >        : same as EmZ (just an alias to match the currently used naming)
      *
      * For development purposes:
      * - currentSolver::EsirkepovNative< SHAPE, STRATEGY > : generic version of currentSolverEsirkepov

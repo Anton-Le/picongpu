@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Heiko Burau, Rene Widera
+/* Copyright 2013-2022 Heiko Burau, Rene Widera
  *
  * This file is part of PMacc.
  *
@@ -45,6 +45,10 @@ namespace pmacc
             CartNavigator(math::Int<dim> factor) : factor(factor)
             {
             }
+
+            HDINLINE CartNavigator(const CartNavigator&) = default;
+
+            HDINLINE CartNavigator& operator=(const CartNavigator&) = default;
 
             template<typename Data>
             HDINLINE Data operator()(const Data& data, const math::Int<dim>& jump) const

@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Felix Schmitt, Heiko Burau, Rene Widera,
+/* Copyright 2013-2022 Felix Schmitt, Heiko Burau, Rene Widera,
  *                     Wolfgang Hoenig, Benjamin Worpitz, Alexander Grund
  *
  * This file is part of PMacc.
@@ -53,6 +53,8 @@ namespace pmacc
                 (*this)[i] = 0;
             }
         }
+        HDINLINE
+        constexpr DataSpace(const DataSpace&) = default;
 
         constexpr HDINLINE DataSpace& operator=(const DataSpace&) = default;
 
@@ -78,10 +80,6 @@ namespace pmacc
             {
                 (*this)[i] = *(&(value.x) + i);
             }
-        }
-
-        HDINLINE DataSpace(const DataSpace<T_Dim>& value) : BaseType(static_cast<const BaseType&>(value))
-        {
         }
 
         /**

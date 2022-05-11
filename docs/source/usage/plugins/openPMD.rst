@@ -31,6 +31,9 @@ Also see :ref:`common patterns of defining particle filters <usage-workflows-par
 .cfg file
 ^^^^^^^^^
 
+Note that all the following command line parameters can *alternatively* be specified in a ``.toml`` configuration file.
+See the next section for further information: `Configuring the openPMD plugin with a TOML configuration file>`
+
 You can use ``--openPMD.period`` to specify the output period.
 The base filename is specified via ``--openPMD.file``.
 The openPMD API will parse the file name to decide the chosen backend and iteration layout:
@@ -143,9 +146,12 @@ Backend-specific notes
 ADIOS2
 ======
 
-The memory usage of some engines in ADIOS2 can be reduced by specifying the environment variable ``openPMD_USE_STORECHUNK_SPAN=1``.
-This makes PIConGPU use the `span-based Put() API <https://adios2.readthedocs.io/en/latest/components/components.html#put-modes-and-memory-contracts>`_ of ADIOS2 which avoids buffer copies, but does not allow for compression.
-Do *not* use this optimization in combination with compression, otherwise the resulting datasets will not be usable.
+* **Only for openPMD-api <= 0.14.3:**
+  The memory usage of some engines in ADIOS2 can be reduced by specifying the environment variable ``openPMD_USE_STORECHUNK_SPAN=1``.
+  This makes PIConGPU use the `span-based Put() API <https://adios2.readthedocs.io/en/latest/components/components.html#put-modes-and-memory-contracts>`_ of ADIOS2 which avoids buffer copies, but does not allow for compression.
+  Do *not* use this optimization in combination with compression, otherwise the resulting datasets will not be usable.
+* **For openPMD-api >= 0.14.4:** The above behavior has been fixed, no user interaction is required. The memory-optimized implementation will be automatically selected if possible.
+* **You don't know the precise settings and versions in your setup?** Then keep everything as it is and use the defaults.
 
 HDF5
 ====
@@ -198,6 +204,18 @@ Performance
 
 On the Summit compute system, specifying ``export IBM_largeblock_io=true`` disables data shipping, which leads to reduced overhead for large block write operations.
 This setting is applied in the Summit templates found in ``etc/picongpu/summit-ornl``.
+
+Configuring the openPMD plugin with a TOML configuration file
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The openPMD plugin can alternatively be configured by using a ``.toml`` configuration file.
+Note the inline comments for a description of the used schema:
+
+.. literalinclude:: openPMD.toml
+
+The location of the ``.toml`` file on the filesystem is specified via ``--openPMD.toml``.
+If using this parameter, no other parameters must be specified.
+If another parameter is specified, the openPMD plugin will notice and abort.
 
 
 Memory Complexity

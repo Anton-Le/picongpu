@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Heiko Burau, Rene Widera
+/* Copyright 2013-2022 Heiko Burau, Rene Widera
  *
  * This file is part of PMacc.
  *
@@ -37,6 +37,10 @@ namespace pmacc
             HDINLINE FunctorAccessor(const _Functor& functor) : functor(functor)
             {
             }
+
+            HDINLINE FunctorAccessor(const FunctorAccessor&) = default;
+
+            HDINLINE FunctorAccessor& operator=(const FunctorAccessor&) = default;
 
             template<typename TCursor>
             HDINLINE Reference operator()(TCursor& cursor)

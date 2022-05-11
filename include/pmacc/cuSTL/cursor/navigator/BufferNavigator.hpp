@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Axel Huebl, Heiko Burau, Rene Widera
+/* Copyright 2013-2022 Axel Huebl, Heiko Burau, Rene Widera
  *
  * This file is part of PMacc.
  *
@@ -48,6 +48,10 @@ namespace pmacc
             BufferNavigator(math::Size_t<dim - 1> pitch) : pitch(pitch)
             {
             }
+
+            HDINLINE BufferNavigator(const BufferNavigator&) = default;
+
+            HDINLINE BufferNavigator& operator=(const BufferNavigator&) = default;
 
             template<typename Data>
             HDINLINE Data operator()(const Data& data, const math::Int<dim>& jump) const

@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Heiko Burau, Rene Widera
+/* Copyright 2013-2022 Heiko Burau, Rene Widera
  *
  * This file is part of PMacc.
  *
@@ -63,6 +63,10 @@ namespace pmacc
                 : Cursor<PointerAccessor<T_Type>, BufferNavigator<T_dim>, T_Type*>(other)
             {
             }
+
+            HDINLINE BufferCursor(const BufferCursor&) = default;
+
+            HDINLINE BufferCursor& operator=(const BufferCursor& other) = default;
         };
 
         namespace traits

@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Felix Schmitt, Heiko Burau, Rene Widera,
+/* Copyright 2013-2022 Felix Schmitt, Heiko Burau, Rene Widera,
  *                     Wolfgang Hoenig, Benjamin Worpitz
  *
  * This file is part of PMacc.
@@ -55,6 +55,8 @@ namespace pmacc
         HDINLINE DataBox(Base base) : Base{std::move(base)}
         {
         }
+
+        HDINLINE DataBox(DataBox const&) = default;
 
         HDINLINE decltype(auto) operator()(DataSpace<Base::Dim> const& idx = {}) const
         {

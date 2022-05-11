@@ -1,4 +1,4 @@
-/* Copyright 2014-2021 Rene Widera, Felix Schmitt, Axel Huebl,
+/* Copyright 2014-2022 Rene Widera, Felix Schmitt, Axel Huebl,
  *                     Alexander Grund, Franz Poeschel
  *
  * This file is part of PIConGPU.
@@ -49,6 +49,9 @@
 #include <boost/mpl/pair.hpp>
 #include <boost/mpl/size.hpp>
 #include <boost/mpl/vector.hpp>
+
+#include <algorithm>
+#include <type_traits> // std::remove_reference_t
 
 
 namespace picongpu
@@ -493,7 +496,10 @@ namespace picongpu
                         ds.options = params->jsonMatcher->get(basename + "/particlePatches/extent/" + name_lookup[d]);
                         extent_x.resetDataset(ds);
 
-                        offset_x.store<index_t>(mpiRank, particleOffset[d]);
+                        // particleOffset[d] is allowed to be negative for the first GPU
+                        using OffsetType = std::remove_reference_t<decltype(particleOffset[d])>;
+                        auto const patchParticleOffset = std::max(static_cast<OffsetType>(0), particleOffset[d]);
+                        offset_x.store<index_t>(mpiRank, patchParticleOffset);
                         extent_x.store<index_t>(mpiRank, patchExtent[d]);
                     }
 

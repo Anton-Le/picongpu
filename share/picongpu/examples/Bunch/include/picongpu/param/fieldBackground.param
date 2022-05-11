@@ -1,4 +1,4 @@
-/* Copyright 2014-2021 Axel Huebl, Alexander Debus, Richard Pausch
+/* Copyright 2014-2022 Axel Huebl, Alexander Debus, Richard Pausch
  *
  * This file is part of PIConGPU.
  *
@@ -81,6 +81,8 @@ namespace picongpu
         {
         }
 
+        HDINLINE FieldBackgroundE(const FieldBackgroundE&) = default;
+
         /** Specify your background field E(r,t) here
          *
          * @param cellIdx The total cell id counted from the start at t=0
@@ -124,6 +126,9 @@ namespace picongpu
         /** Add this additional field for pushing particles */
         static constexpr bool InfluenceParticlePusher = PARAM_INCLUDE_FIELDBACKGROUND;
 
+        /** We use this to calculate your SI input back to our unit system */
+        PMACC_ALIGN(m_unitField, const float3_64);
+
         /** TWTS B-fields need to be initialized on host,
          *  so they can look up global grid dimensions.
          *
@@ -135,9 +140,6 @@ namespace picongpu
 #else
         const templates::twts::BField twtsFieldB;
 #endif
-
-        /** We use this to calculate your SI input back to our unit system */
-        PMACC_ALIGN(m_unitField, const float3_64);
 
         HINLINE FieldBackgroundB(const float3_64 unitField)
             : m_unitField(unitField)
@@ -164,6 +166,8 @@ namespace picongpu
                   false)
         {
         }
+
+        HDINLINE FieldBackgroundB(const FieldBackgroundB&) = default;
 
         /** Specify your background field B(r,t) here
          *
@@ -209,9 +213,11 @@ namespace picongpu
         /** We use this to calculate your SI input back to our unit system */
         PMACC_ALIGN(m_unitField, const float3_64);
 
-        HDINLINE FieldBackgroundJ(const float3_64 unitField) : m_unitField(unitField)
+        HINLINE FieldBackgroundJ(const float3_64 unitField) : m_unitField(unitField)
         {
         }
+
+        HDINLINE FieldBackgroundJ(const FieldBackgroundJ&) = default;
 
         /** Specify your background field J(r,t) here
          *

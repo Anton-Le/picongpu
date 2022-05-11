@@ -1,4 +1,4 @@
-/* Copyright 2015-2021 Heiko Burau
+/* Copyright 2015-2022 Heiko Burau
  *
  * This file is part of PMacc.
  *
@@ -59,6 +59,10 @@ namespace pmacc
             MapTo1DNavigator(math::Size_t<dim> shape) : shape(shape), pos(0)
             {
             }
+
+            HDINLINE MapTo1DNavigator(const MapTo1DNavigator&) = default;
+
+            HDINLINE MapTo1DNavigator& operator=(const MapTo1DNavigator&) = default;
 
             template<typename Cursor>
             HDINLINE Cursor operator()(const Cursor& cursor, math::Int<1> jump)

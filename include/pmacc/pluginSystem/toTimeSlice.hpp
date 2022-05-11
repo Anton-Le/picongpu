@@ -1,4 +1,4 @@
-/* Copyright 2018-2021 Rene Widera
+/* Copyright 2018-2022 Rene Widera
  *
  * This file is part of PMacc.
  *
@@ -64,6 +64,10 @@ namespace pmacc
             auto const seqOfSlices = misc::splitString(str, ",");
             for(auto const& slice : seqOfSlices)
             {
+                // skip empty slice strings
+                if(slice.empty())
+                    continue;
+
                 auto const sliceComponents = misc::splitString(slice, ":");
                 PMACC_VERIFY_MSG(
                     !sliceComponents.empty(),

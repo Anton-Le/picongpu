@@ -1,4 +1,4 @@
-/* Copyright 2016-2021 Heiko Burau, Rene Widera, Sergei Bastrakov
+/* Copyright 2016-2022 Heiko Burau, Rene Widera, Sergei Bastrakov
  *
  * This file is part of PIConGPU.
  *
@@ -429,7 +429,24 @@ namespace picongpu
             plugins::multi::Option<std::string> notifyPeriod = {"period", "enable plugin [for each n-th step]"};
             plugins::multi::Option<std::string> fileName = {"file", "output filename (prefix)"};
             plugins::multi::Option<std::string> filter = {"filter", "particle filter: "};
-            plugins::multi::Option<std::string> extension = {"ext", "openPMD filename extension", "h5"};
+            plugins::multi::Option<std::string> extension
+                = { "ext",
+                    "openPMD filename extension",
+#if openPMD_HAVE_HDF5
+                    "h5"
+#elif openPMD_HAVE_ADIOS2
+                    "bp"
+#else
+                    /*
+                     * This branch should never be activated because CMake will
+                     * not enable the openPMD plugin in that case anyway.
+                     */
+                    static_assert(
+                        false,
+                        "openPMD-api has neither ADIOS2 or HDF5 backend available. Use CMake to deactivate the "
+                        "openPMD plugin.")
+#endif
+                  };
             plugins::multi::Option<uint32_t> numBinsYaw = {"numBinsYaw", "number of bins for angle yaw.", 64};
             plugins::multi::Option<uint32_t> numBinsPitch = {"numBinsPitch", "number of bins for angle pitch.", 64};
             plugins::multi::Option<uint32_t> numBinsEnergy
@@ -487,7 +504,7 @@ namespace picongpu
             {
                 if(notifyPeriod.size() != fileName.size())
                     throw std::runtime_error(
-                        name + ": parameter fileName and period are not used the same number of times");
+                        name + ": parameter file and period are not used the same number of times");
 
                 if(notifyPeriod.size() != filter.size())
                     throw std::runtime_error(

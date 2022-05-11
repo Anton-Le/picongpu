@@ -1,4 +1,4 @@
-/* Copyright 2015-2021 Marco Garten, Axel Huebl, Heiko Burau, Rene Widera,
+/* Copyright 2015-2022 Marco Garten, Axel Huebl, Heiko Burau, Rene Widera,
  *                     Richard Pausch, Felix Schmitt
  *
  * This file is part of PIConGPU.
@@ -80,6 +80,8 @@ namespace picongpu
                     , guardSuperCells(guardSuperCells)
                 {
                 }
+
+                HDINLINE CreateParticlesKernel(CreateParticlesKernel const&) = default;
 
                 /** Goes over all frames and calls `ParticleCreator`
                  *
@@ -186,9 +188,6 @@ namespace picongpu
                      */
                     while(sourceFrame.isValid())
                     {
-                        auto isParticleCtx = forEachParticle(
-                            [&](uint32_t const linearIdx) -> bool
-                            { return static_cast<bool>(sourceFrame[linearIdx][multiMask_]); });
                         forEachParticle(
                             [&](lockstep::Idx const idx)
                             {

@@ -1,5 +1,5 @@
 #
-# Copyright 2015-2021 Erik Zenker, Alexander Grund
+# Copyright 2015-2022 Erik Zenker, Alexander Grund
 #
 # This file is part of PMacc.
 #
@@ -24,7 +24,7 @@
 # PMacc tests
 ################################################################################
 
-cmake_minimum_required(VERSION 3.15.0)
+cmake_minimum_required(VERSION 3.18.0)
 project(PMaccTest)
 
 # set helper pathes to find libraries and packages

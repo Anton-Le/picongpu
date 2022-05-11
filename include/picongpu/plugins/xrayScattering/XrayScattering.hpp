@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Axel Huebl, Heiko Burau, Rene Widera, Richard Pausch,
+/* Copyright 2013-2022 Axel Huebl, Heiko Burau, Rene Widera, Richard Pausch,
  *                     Klaus Steiniger, Felix Schmitt, Benjamin Worpitz,
  *                     Juncheng E, Pawel Ordyna
  *
@@ -104,8 +104,8 @@ namespace picongpu
 
                 // Variables for plugin options:
                 std::string notifyPeriod;
-                std::string speciesName;
                 std::string pluginName;
+                std::string speciesName;
                 std::string pluginPrefix;
                 std::string fileName;
                 std::string fileExtension;
@@ -145,16 +145,15 @@ namespace picongpu
             public:
                 //! XrayScattering object initializer.
                 XrayScattering()
-                    : pluginName("xrayScattering: Calculate the SAXS scattering intensity of a "
+                    : // this is bodged so it passes the verification at
+                      // MappingDescription.hpp:79
+                    cellDescription(DataSpace<simDim>(SuperCellSize::toRT()))
+                    , currentStep(0)
+                    , pluginName("xrayScattering: Calculate the SAXS scattering intensity of a "
                                  "species.")
                     , speciesName(T_ParticlesType::FrameType::getName())
                     , pluginPrefix(speciesName + std::string("_xrayScattering"))
-                    ,
-                    // this is bodged so it passes the verification at
-                    // MappingDescription.hpp:79
-                    cellDescription(DataSpace<simDim>(SuperCellSize::toRT()))
                     , isMaster(false)
-                    , currentStep(0)
                     , accumulatedRotations(0)
                 {
                     Environment<>::get().PluginConnector().registerPlugin(this);
@@ -198,7 +197,24 @@ namespace picongpu
                         po::value<std::string>(&fileName)->default_value(pluginName + "Output"),
                         "output file name")(
                         (pluginPrefix + ".ext").c_str(),
-                        po::value<std::string>(&fileExtension)->default_value("bp"),
+                        po::value<std::string>(&fileExtension)
+                            ->default_value(
+#if openPMD_HAVE_ADIOS2
+                                "bp"
+#elif openPMD_HAVE_HDF5
+                                "h5"
+#else
+                                /*
+                                 * This branch should never be activated because CMake will
+                                 * not enable the openPMD plugin in that case anyway.
+                                 */
+                                static_assert(
+                                    false,
+                                    "openPMD-api has neither ADIOS2 or HDF5 backend available. Use CMake to "
+                                    "deactivate the "
+                                    "openPMD plugin.")
+#endif
+                                ),
                         "openPMD filename extension (this controls the backend "
                         "picked by the openPMD API)")(
                         (pluginPrefix + ".memoryLayout").c_str(),

@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Heiko Burau, Rene Widera, Benjamin Worpitz
+/* Copyright 2013-2022 Heiko Burau, Rene Widera, Benjamin Worpitz
  *
  * This file is part of PMacc.
  *
@@ -72,6 +72,8 @@ namespace pmacc
         SharedBox(ValueType* pointer = nullptr) : fixedPointer(pointer)
         {
         }
+
+        HDINLINE SharedBox(SharedBox const&) = default;
 
         using ReducedType1D = T_TYPE&;
         using ReducedType2D = SharedBox<T_TYPE, math::CT::Int<T_Vector::x::value>, T_id>;

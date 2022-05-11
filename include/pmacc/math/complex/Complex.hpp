@@ -1,4 +1,4 @@
-/* Copyright 2013-2021 Heiko Burau, Rene Widera, Richard Pausch, Alexander Debus
+/* Copyright 2013-2022 Heiko Burau, Rene Widera, Richard Pausch, Alexander Debus
  *
  * This file is part of PMacc.
  *
@@ -61,12 +61,7 @@ namespace pmacc
             }
 
             // Assignment operator
-            HDINLINE Complex& operator=(const Complex& other)
-            {
-                real = other.get_real();
-                imaginary = other.get_imag();
-                return *this;
-            }
+            HDINLINE Complex& operator=(const Complex& other) = default;
 
             // assign addition
             HDINLINE Complex& operator+=(const Complex& other)
