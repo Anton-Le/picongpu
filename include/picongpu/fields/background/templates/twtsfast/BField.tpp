@@ -1,4 +1,4 @@
-/* Copyright 2014-2022 Alexander Debus, Axel Huebl
+/* Copyright 2014-2022 Alexander Debus, Axel Huebl, Sergei Bastrakov
  *
  * This file is part of PIConGPU.
  *
@@ -289,11 +289,29 @@ namespace picongpu
             HDINLINE
             float3_X BField::operator()(DataSpace<simDim> const& cellIdx, uint32_t const currentStep) const
             {
-                float_64 const time_SI = float_64(currentStep) * dt - tdelay;
                 traits::FieldPosition<fields::CellType, FieldB> const fieldPosB;
+                return getValue(precisionCast<float_X>(cellIdx), fieldPosB(), static_cast<float_X>(currentStep));
+            }
+
+            HDINLINE
+            float3_X BField::operator()(floatD_X const& cellIdx, float_X const currentStep) const
+            {
+                pmacc::math::Vector<floatD_X, detail::numComponents> zeroShifts;
+                for(uint32_t component = 0; component < detail::numComponents; ++component)
+                    zeroShifts[component] = floatD_X::create(0.0);
+                return getValue(cellIdx, zeroShifts, currentStep);
+            }
+
+            HDINLINE
+            float3_X BField::getValue(
+                floatD_X const& cellIdx,
+                pmacc::math::Vector<floatD_X, detail::numComponents> const& extraShifts,
+                float_X const currentStep) const
+            {
+                float_64 const time_SI = float_64(currentStep) * dt - tdelay;
 
                 pmacc::math::Vector<floatD_64, detail::numComponents> const bFieldPositions_SI
-                    = detail::getFieldPositions_SI(cellIdx, halfSimSize, fieldPosB(), unit_length, focus_y_SI, phi);
+                    = detail::getFieldPositions_SI(cellIdx, halfSimSize, extraShifts, unit_length, focus_y_SI, phi);
                 /* Single TWTS-Pulse */
                 switch(pol)
                 {
@@ -307,6 +325,63 @@ namespace picongpu
                                                         time_SI); // defensive default
             }
 
+            template<uint32_t T_component>
+            HDINLINE float_X BField::getComponent(floatD_X const& cellIdx, float_X const currentStep) const
+            {
+                // The optimized way is only implemented for 3d, fall back to full field calculation in 2d
+                if constexpr(simDim == DIM3)
+                {
+                    float_64 const time_SI = float_64(currentStep) * dt - tdelay;
+                    pmacc::math::Vector<floatD_X, detail::numComponents> zeroShifts;
+                    for(uint32_t component = 0; component < detail::numComponents; ++component)
+                        zeroShifts[component] = floatD_X::create(0.0);
+                    pmacc::math::Vector<floatD_64, detail::numComponents> const bFieldPositions_SI
+                        = detail::getFieldPositions_SI(cellIdx, halfSimSize, zeroShifts, unit_length, focus_y_SI, phi);
+                    // Explicitly use a 3d vector so that this function compiles for 2d as well
+                    auto const pos = float3_64{
+                        bFieldPositions_SI[T_component][0],
+                        bFieldPositions_SI[T_component][1],
+                        bFieldPositions_SI[T_component][2]};
+                    switch(pol)
+                    {
+                    case LINEAR_X:
+                        if constexpr(T_component == 0)
+                            return 0.0_X;
+                        else
+                        {
+                            auto const field1 = calcTWTSBy(pos, time_SI);
+                            auto const field2 = calcTWTSBz_Ex(pos, time_SI);
+                            float_X sinPhi;
+                            float_X cosPhi;
+                            pmacc::math::sincos(phi, sinPhi, cosPhi);
+                            if constexpr(T_component == 1)
+                                return -sinPhi * field1 + cosPhi * field2;
+                            if constexpr(T_component == 2)
+                                return -cosPhi * field1 - sinPhi * field2;
+                        }
+
+                    case LINEAR_YZ:
+                        if constexpr(T_component == 0)
+                            return calcTWTSBx(pos, time_SI);
+                        else
+                        {
+                            auto const field = calcTWTSBz_Ey(pos, time_SI);
+                            float_X sinPhi;
+                            float_X cosPhi;
+                            pmacc::math::sincos(phi, sinPhi, cosPhi);
+                            if constexpr(T_component == 1)
+                                return cosPhi * field;
+                            if constexpr(T_component == 2)
+                                return -sinPhi * field;
+                        }
+                    }
+                    // we should never be here
+                    return 0.0_X;
+                }
+                if constexpr(simDim != DIM3)
+                    return (*this)(cellIdx, currentStep)[T_component];
+            }
+
             /** Calculate the By(r,t) field here
              *
              * @param pos Spatial position of the target field.
@@ -315,8 +390,8 @@ namespace picongpu
             HDINLINE
             BField::float_T BField::calcTWTSBy(float3_64 const& pos, float_64 const time) const
             {
-                using complex_T = pmacc::math::Complex<float_T>;
-                using complex_64 = pmacc::math::Complex<float_64>;
+                using complex_T = alpaka::Complex<float_T>;
+                using complex_64 = alpaka::Complex<float_64>;
 
                 /* Propagation speed of overlap normalized to the speed of light [Default: beta0=1.0] */
                 auto const beta0 = float_T(beta_0);
@@ -451,7 +526,7 @@ namespace picongpu
                        * math::sqrt(cspeed * om0 * rho0 / helpVar2))
                     / (float_T(2.0) * cspeed * math::pow(helpVar4, float_T(1.5)));
 
-                return result.get_real() / UNIT_SPEED;
+                return result.real() / UNIT_SPEED;
             }
 
             /** Calculate the Bz(r,t) field
@@ -462,7 +537,7 @@ namespace picongpu
             HDINLINE
             BField::float_T BField::calcTWTSBz_Ex(float3_64 const& pos, float_64 const time) const
             {
-                using complex_T = pmacc::math::Complex<float_T>;
+                using complex_T = alpaka::Complex<float_T>;
 
                 /* propagation speed of overlap normalized to the speed of light [Default: beta0=1.0] */
                 auto const beta0 = float_T(beta_0);
@@ -592,7 +667,7 @@ namespace picongpu
                        * math::sqrt(om0 * rho0 / helpVar7))
                     / math::pow(helpVar9, float_T(1.5));
 
-                return result.get_real() / UNIT_SPEED;
+                return result.real() / UNIT_SPEED;
             }
 
             /** Calculate the Bx(r,t) field
@@ -617,8 +692,8 @@ namespace picongpu
             HDINLINE
             BField::float_T BField::calcTWTSBz_Ey(float3_64 const& pos, float_64 const time) const
             {
-                using complex_T = pmacc::math::Complex<float_T>;
-                using complex_64 = pmacc::math::Complex<float_64>;
+                using complex_T = alpaka::Complex<float_T>;
+                using complex_64 = alpaka::Complex<float_64>;
 
                 /* Propagation speed of overlap normalized to the speed of light [Default: beta0=1.0] */
                 auto const beta0 = float_T(beta_0);
@@ -754,7 +829,7 @@ namespace picongpu
                        * math::pow(float_T(1.0) / helpVar2, float_T(1.5)))
                     / math::sqrt(helpVar4);
 
-                return result.get_real() / UNIT_SPEED;
+                return result.real() / UNIT_SPEED;
             }
 
         } /* namespace twtsfast */

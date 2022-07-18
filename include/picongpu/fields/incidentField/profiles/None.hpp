@@ -26,6 +26,7 @@
 #include "picongpu/fields/incidentField/profiles/None.def"
 
 #include <cstdint>
+#include <string>
 
 
 namespace picongpu
@@ -34,28 +35,30 @@ namespace picongpu
     {
         namespace incidentField
         {
+            namespace profiles
+            {
+                struct None
+                {
+                    //! Get text name of the incident field profile
+                    static HINLINE std::string getName()
+                    {
+                        return "None";
+                    }
+                };
+            } // namespace profiles
+
             namespace detail
             {
-                /** Get type of incident field E functor for the none profile type
-                 *
-                 * @tparam T_axis boundary axis, 0 = x, 1 = y, 2 = z
-                 * @tparam T_direction direction, 1 = positive (from the min boundary inwards), -1 = negative (from the
-                 * max boundary inwards)
-                 */
-                template<uint32_t T_axis, int32_t T_direction>
-                struct GetFunctorIncidentE<profiles::None, T_axis, T_direction>
+                //! Get type of incident field E functor for the none profile type
+                template<>
+                struct GetFunctorIncidentE<profiles::None>
                 {
                     using type = ZeroFunctor;
                 };
 
-                /** Get type of incident field B functor for the none profile type
-                 *
-                 * @tparam T_axis boundary axis, 0 = x, 1 = y, 2 = z
-                 * @tparam T_direction direction, 1 = positive (from the min boundary inwards), -1 = negative (from the
-                 * max boundary inwards)
-                 */
-                template<uint32_t T_axis, int32_t T_direction>
-                struct GetFunctorIncidentB<profiles::None, T_axis, T_direction>
+                //! Get type of incident field B functor for the none profile type
+                template<>
+                struct GetFunctorIncidentB<profiles::None>
                 {
                     using type = ZeroFunctor;
                 };

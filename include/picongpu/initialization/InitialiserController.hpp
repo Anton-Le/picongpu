@@ -1,4 +1,4 @@
-/* Copyright 2013-2022 Axel Huebl, Heiko Burau, Rene Widera, Felix Schmitt
+/* Copyright 2013-2022 Axel Huebl, Heiko Burau, Rene Widera, Felix Schmitt, Sergei Bastrakov
  *
  * This file is part of PIConGPU.
  *
@@ -23,13 +23,18 @@
 
 #include "picongpu/fields/FieldB.hpp"
 #include "picongpu/fields/FieldE.hpp"
+#include "picongpu/fields/LaserPhysics.hpp"
 #include "picongpu/fields/MaxwellSolver/CFLChecker.hpp"
+#include "picongpu/fields/MaxwellSolver/DispersionRelationSolver.hpp"
+#include "picongpu/fields/incidentField/Traits.hpp"
+#include "picongpu/fields/incidentField/profiles/profiles.hpp"
 #include "picongpu/fields/laserProfiles/profiles.hpp"
 #include "picongpu/initialization/IInitPlugin.hpp"
 #include "picongpu/initialization/SimStartInitialiser.hpp"
 #include "picongpu/particles/traits/GetDensityRatio.hpp"
 
 #include <pmacc/Environment.hpp>
+#include <pmacc/algorithms/math/defines/pi.hpp>
 #include <pmacc/assert.hpp>
 #include <pmacc/pluginSystem/PluginConnector.hpp>
 
@@ -125,9 +130,10 @@ namespace picongpu
             if(Environment<simDim>::get().GridController().getGlobalRank() == 0)
             {
                 auto maxC_DT = fields::maxwellSolver::CFLChecker<fields::Solver>{}();
-
                 log<picLog::PHYSICS>("Field solver condition: c * dt <= %1% ? (c * dt = %2%)") % maxC_DT
                     % (SPEED_OF_LIGHT * DELTA_T);
+
+                printDispersionInformation();
 
                 using SpeciesWithMass =
                     typename pmacc::particles::traits::FilterByFlag<VectorAllSpecies, massRatio<>>::type;
@@ -197,6 +203,50 @@ namespace picongpu
 
         bool restartSim;
         std::string restartFile;
+
+        /** Functor to print dispersion information for the given incident field profile
+         *
+         * @tparam T_Profile incident field profile
+         */
+        template<typename T_Profile>
+        struct PrintIncidentFieldDispersion
+        {
+            // Calculate and print phase velocity
+            void operator()() const
+            {
+                // Skip profiles that are not sufficiently parametrized to calculate phase velocity
+                auto const printInfo = (fields::incidentField::amplitude<T_Profile> > 0.0_X);
+                if(printInfo)
+                {
+                    auto const phaseVelocity = fields::incidentField::getPhaseVelocity<T_Profile>();
+                    auto const phaseVelocityC = phaseVelocity / SPEED_OF_LIGHT;
+                    auto const message = std::string{"Incident field \""} + T_Profile::getName()
+                        + "\" numerical dispersion: v_phase = %1% * c";
+                    log<picLog::PHYSICS>(message.c_str()) % phaseVelocityC;
+                }
+            }
+        };
+
+        //! Print dispersion information for the laser enabled in laser.param
+        void printDispersionInformation()
+        {
+            using namespace fields;
+            // Note: fields:: still required for the next line, otherwise LaserPhysics is ambiguous
+            if(fields::LaserPhysics::isEnabled())
+            {
+                auto const omega = pmacc::math::Pi<float_64>::doubleValue
+                    * static_cast<float_64>(SPEED_OF_LIGHT / laserProfiles::Selected::WAVE_LENGTH);
+                // Assume propagation along y as all laser profiles do it
+                auto const direction = float3_64{0.0, 1.0, 0.0};
+                auto const absK = maxwellSolver::DispersionRelationSolver<Solver>{}(omega, direction);
+                // Phase velocity in units of c
+                auto const phaseVelocityC = omega / absK;
+                log<picLog::PHYSICS>("Laser numerical dispersion: v_phase = %1% * c") % phaseVelocityC;
+            }
+            using IncidentFieldProfiles = fields::incidentField::UniqueEnabledProfiles;
+            meta::ForEach<IncidentFieldProfiles, PrintIncidentFieldDispersion<bmpl::_1>> printIncidentFieldDispersion;
+            printIncidentFieldDispersion();
+        }
     };
 
 } // namespace picongpu

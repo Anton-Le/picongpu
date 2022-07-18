@@ -1,4 +1,4 @@
-/* Copyright 2013-2022 Axel Huebl, Heiko Burau, Rene Widera, Richard Pausch, Felix Schmitt
+/* Copyright 2013-2022 Axel Huebl, Heiko Burau, Rene Widera, Richard Pausch, Felix Schmitt, Sergei Bastrakov
  *
  * This file is part of PIConGPU.
  *
@@ -24,6 +24,7 @@
 #include "picongpu/fields/FieldB.hpp"
 #include "picongpu/fields/FieldE.hpp"
 #include "picongpu/fields/FieldJ.hpp"
+#include "picongpu/fields/incidentField/Traits.hpp"
 #include "picongpu/plugins/ILightweightPlugin.hpp"
 #include "picongpu/plugins/output/GatherSlice.hpp"
 #include "picongpu/plugins/output/header/MessageHeader.hpp"
@@ -47,6 +48,8 @@
 #include <pmacc/memory/boxes/SharedBox.hpp>
 #include <pmacc/memory/buffers/GridBuffer.hpp>
 #include <pmacc/memory/shared/Allocate.hpp>
+#include <pmacc/meta/ForEach.hpp>
+#include <pmacc/particles/algorithm/ForEach.hpp>
 #include <pmacc/particles/memory/boxes/ParticlesBox.hpp>
 #include <pmacc/traits/GetNumWorkers.hpp>
 
@@ -58,15 +61,18 @@
 namespace picongpu
 {
     // normalize EM fields to typical laser or plasma quantities
-    //-1: Auto:    enable adaptive scaling for each output
-    // 1: Laser:   typical fields calculated out of the laser amplitude
-    // 2: Drift:   outdated
-    // 3: PlWave:  typical fields calculated out of the plasma freq.,
-    //             assuming the wave moves approx. with c
-    // 4: Thermal: outdated
-    // 5: BlowOut: typical fields, assuming that a LWFA in the blowout
-    //             regime causes a bubble with radius of approx. the laser's
-    //             beam waist (use for bubble fields)
+    //-1: Auto:     enable adaptive scaling for each output
+    // 1: Laser:    typical fields calculated out of the laser amplitude
+    // 2: Drift:    outdated
+    // 3: PlWave:   typical fields calculated out of the plasma freq.,
+    //              assuming the wave moves approx. with c
+    // 4: Thermal:  outdated
+    // 5: BlowOut:  typical fields, assuming that a LWFA in the blowout
+    //              regime causes a bubble with radius of approx. the laser's
+    //              beam waist (use for bubble fields)
+    // 6: Custom:   user-provided normalization factors via visPreview::customNormalizationSI
+    // 7: Incident: typical fields calculated out of the incident field amplitude,
+    //              uses max amplitude from all enabled incident field profile types ignoring Free
     ///  @return float3_X( tyBField, tyEField, tyCurrent )
 
     template<int T>
@@ -154,6 +160,75 @@ namespace picongpu
         }
     };
 
+    //! Specialization for custom normalization
+    template<>
+    struct typicalFields<6>
+    {
+        HDINLINE static float3_X get()
+        {
+#if !(EM_FIELD_SCALE_CHANNEL1 == 6 || EM_FIELD_SCALE_CHANNEL2 == 6 || EM_FIELD_SCALE_CHANNEL3 == 6)
+            return float3_X(float_X(1.0), float_X(1.0), float_X(1.0));
+#else
+            // Convert customNormalizationSI to internal units
+            using visPreview::customNormalizationSI;
+            constexpr auto normalizationB = static_cast<float_X>(customNormalizationSI[0] / UNIT_BFIELD);
+            constexpr auto normalizationE = static_cast<float_X>(customNormalizationSI[1] / UNIT_EFIELD);
+            constexpr auto normalizationCurrent
+                = static_cast<float_X>(customNormalizationSI[2] / (UNIT_CHARGE / UNIT_TIME));
+            return float3_X{normalizationB, normalizationE, normalizationCurrent};
+#endif
+        }
+    };
+
+    //! Specialization for incident field normalization
+    template<>
+    struct typicalFields<7>
+    {
+        //! Get normalization values
+        HDINLINE static float3_X get()
+        {
+#if !(EM_FIELD_SCALE_CHANNEL1 == 7 || EM_FIELD_SCALE_CHANNEL2 == 7 || EM_FIELD_SCALE_CHANNEL3 == 7)
+            return float3_X::create(1.0_X);
+#else
+            constexpr auto baseCharge = BASE_CHARGE;
+            const float_X tyCurrent = particles::TYPICAL_PARTICLES_PER_CELL
+                * particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE * math::abs(baseCharge) / DELTA_T;
+            const float_X tyEField = getAmplitude() + FLT_MIN;
+            const float_X tyBField = tyEField * MUE0_EPS0;
+            return float3_X(tyBField, tyEField, tyCurrent);
+#endif
+        }
+
+    private:
+        //! Get laser E amplitude in internal units
+        HDINLINE static float_X getAmplitude()
+        {
+            using Profiles = fields::incidentField::UniqueEnabledProfiles;
+            meta::ForEach<Profiles, CalculateMaxAmplitude<bmpl::_1>> calculateMaxAmplitude;
+            auto maxAmplitude = 0.0_X;
+            calculateMaxAmplitude(maxAmplitude);
+            return maxAmplitude;
+        }
+
+        /** Functor to calculate max amplitude between the given value and given profile
+         *
+         * @tparam T_Profile incident field profile
+         */
+        template<typename T_Profile>
+        struct CalculateMaxAmplitude
+        {
+            /** Call update E with the given parameters
+             *
+             * @param[out] maxAmplitude current value of max amplitude, can be updated by the functor
+             */
+            HDINLINE void operator()(float_X& maxAmplitude) const
+            {
+                auto const amplitude = fields::incidentField::amplitude<T_Profile>;
+                if(amplitude > maxAmplitude)
+                    maxAmplitude = amplitude;
+            }
+        };
+    };
 
     /** Check if an offset is part of the slicing domain
      *
@@ -288,8 +363,8 @@ namespace picongpu
                     typename T_EBox::ValueType field_e = fieldE(cellOffset);
                     typename T_JBox::ValueType field_j = fieldJ(cellOffset);
 
-                    // multiply with the area size of each plane
-                    field_j *= float3_X::create(CELL_VOLUME) / cellSize;
+                    // multiply with the area size of each plane to get current
+                    auto field_current = field_j * float3_X::create(CELL_VOLUME) / cellSize;
 
                     /* reset picture to black
                      *   color range for each RGB channel: [0.0, 1.0]
@@ -302,15 +377,15 @@ namespace picongpu
                         visPreview::preChannel1(
                             field_b / typicalFields<EM_FIELD_SCALE_CHANNEL1>::get()[0],
                             field_e / typicalFields<EM_FIELD_SCALE_CHANNEL1>::get()[1],
-                            field_j / typicalFields<EM_FIELD_SCALE_CHANNEL1>::get()[2]),
+                            field_current / typicalFields<EM_FIELD_SCALE_CHANNEL1>::get()[2]),
                         visPreview::preChannel2(
                             field_b / typicalFields<EM_FIELD_SCALE_CHANNEL2>::get()[0],
                             field_e / typicalFields<EM_FIELD_SCALE_CHANNEL2>::get()[1],
-                            field_j / typicalFields<EM_FIELD_SCALE_CHANNEL2>::get()[2]),
+                            field_current / typicalFields<EM_FIELD_SCALE_CHANNEL2>::get()[2]),
                         visPreview::preChannel3(
                             field_b / typicalFields<EM_FIELD_SCALE_CHANNEL3>::get()[0],
                             field_e / typicalFields<EM_FIELD_SCALE_CHANNEL3>::get()[1],
-                            field_j / typicalFields<EM_FIELD_SCALE_CHANNEL3>::get()[2]));
+                            field_current / typicalFields<EM_FIELD_SCALE_CHANNEL3>::get()[2]));
 
                     // draw to (perhaps smaller) image cell
                     image(imageCell) = pic;
@@ -357,8 +432,7 @@ namespace picongpu
         {
             using SuperCellSize = typename T_Mapping::SuperCellSize;
 
-            constexpr uint32_t numParticlesPerFrame = pmacc::math::CT::volume<SuperCellSize>::type::value;
-            constexpr uint32_t numCellsPerSupercell = numParticlesPerFrame;
+            constexpr uint32_t numCellsPerSupercell = pmacc::math::CT::volume<SuperCellSize>::type::value;
             constexpr uint32_t numWorkers = T_numWorkers;
 
             uint32_t const workerIdx = cupla::threadIdx(acc).x;
@@ -440,46 +514,41 @@ namespace picongpu
             // wait that shared memory  is set to zero
             cupla::__syncthreads(acc);
 
-            using FramePtr = typename T_ParBox::FramePtr;
-            FramePtr frame = pb.getFirstFrame(suplercellIdx);
+            auto forEachParticle
+                = pmacc::particles::algorithm::acc::makeForEach<numWorkers>(workerIdx, pb, suplercellIdx);
 
-            // each virtual worker works on a particle in the frame
-            auto forEachParticle = lockstep::makeForEach<numParticlesPerFrame, numWorkers>(workerIdx);
+            // end kernel if we have no particles
+            if(!forEachParticle.hasParticles())
+                return;
 
-            while(frame.isValid())
-            {
-                forEachParticle(
-                    [&](uint32_t const linearIdx)
+            forEachParticle(
+                acc,
+                [&supercellCellOffset, &counter, &transpose, sliceDim, slice, localDomainOffset](
+                    auto const& accelerator,
+                    auto& particle)
+                {
+                    int const linearCellIdx = particle[localCellIdx_];
+                    // we only draw the first slice of cells in the super cell (z == 0)
+                    DataSpace<simDim> const particleCellOffset(
+                        DataSpaceOperations<simDim>::template map<SuperCellSize>(linearCellIdx));
+                    bool const isParticleOnSlice = IsPartOfSlice<>{}(
+                        particleCellOffset + supercellCellOffset,
+                        sliceDim,
+                        localDomainOffset,
+                        slice);
+                    if(isParticleOnSlice)
                     {
-                        auto particle = frame[linearIdx];
-                        if(particle[multiMask_] == 1)
-                        {
-                            int const linearCellIdx = particle[localCellIdx_];
-                            // we only draw the first slice of cells in the super cell (z == 0)
-                            DataSpace<simDim> const particleCellOffset(
-                                DataSpaceOperations<simDim>::template map<SuperCellSize>(linearCellIdx));
-                            bool const isParticleOnSlice = IsPartOfSlice<>{}(
-                                particleCellOffset + supercellCellOffset,
-                                sliceDim,
-                                localDomainOffset,
-                                slice);
-                            if(isParticleOnSlice)
-                            {
-                                DataSpace<DIM2> const reducedCell(
-                                    particleCellOffset[transpose.x()],
-                                    particleCellOffset[transpose.y()]);
-                                cupla::atomicAdd(
-                                    acc,
-                                    &(counter(reducedCell)),
-                                    // normalize the value to avoid bad precision for large macro particle weightings
-                                    particle[weighting_] / particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE,
-                                    ::alpaka::hierarchy::Threads{});
-                            }
-                        }
-                    });
-
-                frame = pb.getNextFrame(frame);
-            }
+                        DataSpace<DIM2> const reducedCell(
+                            particleCellOffset[transpose.x()],
+                            particleCellOffset[transpose.y()]);
+                        cupla::atomicAdd(
+                            accelerator,
+                            &(counter(reducedCell)),
+                            // normalize the value to avoid bad precision for large macro particle weightings
+                            particle[weighting_] / particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE,
+                            ::alpaka::hierarchy::Threads{});
+                    }
+                });
 
             // wait that all worker finsihed the reduce operation
             cupla::__syncthreads(acc);
@@ -713,7 +782,7 @@ namespace picongpu
             m_output.join();
 
             uint32_t localDomainOffset = 0;
-            if(simDim == DIM3)
+            if constexpr(simDim == DIM3)
                 localDomainOffset = Environment<simDim>::get().SubGrid().getLocalDomain().offset[sliceDim];
 
             constexpr uint32_t cellsPerSupercell = pmacc::math::CT::volume<SuperCellSize>::type::value;
@@ -855,15 +924,15 @@ namespace picongpu
         {
             PMACC_ASSERT(cellDescription != nullptr);
             const DataSpace<simDim> globalRootCellPos(Environment<simDim>::get().SubGrid().getLocalDomain().offset);
-#if(SIMDIM == DIM3)
-            const bool tmp
-                = globalRootCellPos[sliceDim] + Environment<simDim>::get().SubGrid().getLocalDomain().size[sliceDim]
-                    > sliceOffset
-                && globalRootCellPos[sliceDim] <= sliceOffset;
-            return tmp;
-#else
+            if constexpr(simDim == DIM3)
+            {
+                const bool tmp = globalRootCellPos[sliceDim]
+                            + Environment<simDim>::get().SubGrid().getLocalDomain().size[sliceDim]
+                        > sliceOffset
+                    && globalRootCellPos[sliceDim] <= sliceOffset;
+                return tmp;
+            }
             return true;
-#endif
         }
 
 

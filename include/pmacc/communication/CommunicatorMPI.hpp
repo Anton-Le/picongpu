@@ -29,6 +29,7 @@
 #include "pmacc/types.hpp"
 
 #include <map>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -139,7 +140,11 @@ namespace pmacc
 
             if(numberProcesses.productOfComponents() != mpiSize)
             {
-                throw std::invalid_argument("wrong parameters or wrong mpirun-call!");
+                throw std::invalid_argument(
+                    "Wrong configuration of processes or wrong MPI launch call: MPI_COMM_WORLD has "
+                    + std::to_string(mpiSize) + " ranks, but process configuration "
+                    + std::to_string(numberProcesses[0]) + "x" + std::to_string(numberProcesses[1]) + "x"
+                    + std::to_string(numberProcesses[2]) + " was requested");
             }
 
             // 1. create Communicator (computing_comm) of computing nodes (ranks 0...n)
@@ -237,7 +242,7 @@ namespace pmacc
         bool slide() override
         {
             // we can only slide in y direction right now
-            if(DIM < DIM2)
+            if constexpr(DIM < DIM2)
                 return false;
 
             // MPI_Barrier(topology);
@@ -257,7 +262,7 @@ namespace pmacc
                 return false;
 
             // we can only slide in y direction right now
-            if(DIM < DIM2)
+            if constexpr(DIM < DIM2)
                 return false;
 
             bool result = false;
@@ -399,7 +404,7 @@ namespace pmacc
                 if(m.containsExchangeType(RIGHT))
                     mcoords[0]++;
 
-                if(DIM >= DIM2)
+                if constexpr(DIM >= DIM2)
                 {
                     if(m.containsExchangeType(TOP))
                         mcoords[1]--;
@@ -407,7 +412,7 @@ namespace pmacc
                         mcoords[1]++;
                 }
 
-                if(DIM == DIM3)
+                if constexpr(DIM == DIM3)
                 {
                     if(m.containsExchangeType(BACK))
                         mcoords[2]++;

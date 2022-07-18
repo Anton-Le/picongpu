@@ -46,7 +46,7 @@ The Huygens surface is chosen so that no Yee grid nodes lay on it.
 So it could be located at an arbitrary position that does not collide with cell- and half-cell boundaries.
 
 In PIConGPU, the position of the Huygens surface is defined relative to the internal boundary of the field absorber.
-The surface is shifted inwards relative to each boundary by a user-defined offset in full cells and an additional 0.75 cells.
+The surface is located inwards relative to each boundary by a user-defined position in full cells and an additional 0.75 cells.
 The equations presented in  this section hold for this 0.75 shift and the Yee grid layout used in PIConGPU.
 In principle, a similar derivation can be done in any case, but the resulting expression would not generally match index-by-index. 
 
@@ -77,7 +77,7 @@ Single Boundary
 ^^^^^^^^^^^^^^^
 
 First we describe application of a field source only at the :math:`x_{min}` boundary.
-For this case, suppose the source is given along a plane :math:`x = x_{min} + offset + 0.75 \Delta x` and acts along the whole domain in :math:`y` and :math:`z`.
+For this case, suppose the source is given along a plane :math:`x = x_{min} + \mathrm{position} \Delta x + 0.75 \Delta x` and acts along the whole domain in :math:`y` and :math:`z`.
 The source affects transversal field components :math:`E_y`, :math:`E_z`, :math:`B_y`, :math:`B_z`.
 Components :math:`E_x`, :math:`B_x` are not affected by TF/SF and we do not consider them in the following description.
 We also omit the :math:`\vec J` term which is applied as usual in the field solver and is also not affected by TF/SF.
@@ -395,7 +395,6 @@ Calculating Incident B from E
 Consider a case when both :math:`\vec E^{inc}(x, y, z, t)` and  :math:`\vec B^{inc}(x, y, z, t)` are theoretically present, but only :math:`\vec E^{inc}(x, y, z, t)` is known in explicit form.
 
 When slowly varying elvelope approximation (SVEA) is applicable, one may employ it to calculate the other field as :math:`\vec B^{inc}(x, y, z, t) = \vec k \times \vec E^{inc}(x, y, z, t) / c`.
-PIConGPU implements this approach for all incident field profiles and as a default second parameter of the ``Free`` incident field profile.
 
 Otherwise one may use TF/SF with only the modified known field set as incident and the other one set to 0.
 Generally, the interpretation of the result is assisted by the equivalence theorem, and in particular Love and Schelkunoff equivalence principles [Harrington2001]_ [Balanis2012]_.
@@ -405,7 +404,7 @@ Likewise, having :math:`\vec B^{inc}(x, y, z, t) = \vec 0` corresponds to only m
 Practically, one may try using the known incident field with twice the amplitude and keeping the other incident field zero, as demonstrated in [Rengarajan2000]_.
 Note that using this approach in PIConGPU results in generating pulses going both inwards and outwards of the Huygens surface
 (similar to laser profiles with ``initPlaneY > 0``).
-Therefore, it is recommended to have no density outside the surface and use a strong field absorber to negate the effect of the artificial outwards-going pulse.
+Therefore, in this case it is recommended to have no density outside the surface and use a strong field absorber to negate the effect of the artificial outwards-going pulse.
 
 References
 ----------

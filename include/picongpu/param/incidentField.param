@@ -19,7 +19,7 @@
 
 /** @file incidentField.param
  *
- * Configure incident field profile and gap between Huygence surface and absorber for each boundary.
+ * Configure incident field profile and offset of the Huygens surface for each boundary.
  *
  * Available profiles:
  *  - profiles::ExpRampWithPrepulse<> : exponential ramp with prepulse wavepacket with given parameters
@@ -33,19 +33,26 @@
  *  - profiles::Wavepacket<>          : wavepacket with Gaussian spatial and temporal envelope profile with given
  * parameters
  *
+ * All profiles but `Free<>` and `None` are parametrized with a profile-specific structure.
+ * Their interfaces are defined in the corresponding `.def` files inside directory
+ * picongpu/fields/incidentField/profiles/. Note that all these parameter structures inherit common base structures
+ * from `BaseParam.def`. Thus, a user-provided structure must also define all members according to the base struct.
+ *
  * In the end, this file needs to define `XMin`, `XMax`, `YMax`, `YMax`, `ZMin`, `ZMax` (the latter two can be skipped
- * in 2d) type aliases in namespace `picongpu::fields::incidentField`. It also has to define constexpr array
- * `OFFSET` that controls inward offset of the generating surface relative to global domain. For example:
+ * in 2d) type aliases in namespace `picongpu::fields::incidentField`. Each of them could be a single profile or a
+ * typelist of profiles created with `MakeSeq_t`. In case a typelist is used, the resulting field is a sum of
+ * effects of all profiles in the list. This file also has to define constexpr array `POSITION` that controls
+ * positioning of the generating surface relative to total domain. For example:
  *
  * @code{.cpp}
- * using XMin = profiles::Free< UserFunctorIncidentE >;
+ * using XMin = profiles::Free<UserFunctorIncidentE, UserFunctorIncidentB>;
  * using XMax = profiles::None;
- * using YMin = profiles::PlaneWave< UserPlaneWaveParams >;
- * using YMax = profiles::Free< AnotherUserFunctorIncidentE, AnotherUserFunctorIncidentB >;
- * using ZMin = profiles::Polynom< UserPolynomParams >;
- * using ZMax = profiles::GaussianBeam< UserGaussianBeamParams >;
+ * using YMin = MakeSeq_t<profiles::PlaneWave<UserPlaneWaveParams>, profiles::Wavepacket<UserWavepacketParams>>;
+ * using YMax = profiles::None;
+ * using ZMin = profiles::Polynom<UserPolynomParams>;
+ * using ZMax = profiles::GaussianBeam<UserGaussianBeamParams>;
  *
- * constexpr uint32_t OFFSET[3][2] = { {16, 16}, {16, 16}, {16, 16} };
+ * constexpr int32_t POSITION[3][2] = { {16, -16}, {16, -16}, {16, -16} };
  * @endcode
  */
 
@@ -70,10 +77,12 @@ namespace picongpu
 
                 /** Create a functor
                  *
+                 * @param currentStep current time step index, note that it is fractional
                  * @param unitField conversion factor from SI to internal units,
                  *                  field_internal = field_SI / unitField
                  */
-                HDINLINE UserFunctorIncidentE(const float3_64 unitField) : m_unitField(unitField)
+                HDINLINE UserFunctorIncidentE(float_X const currentStep, const float3_64 unitField)
+                    : m_unitField(unitField)
                 {
                 }
 
@@ -81,10 +90,9 @@ namespace picongpu
                  *
                  * @param totalCellIdx cell index in the total domain (including all moving window slides),
                  *        note that it is fractional
-                 * @param currentStep current time step index, note that it is fractional
                  * @return incident field value in internal units
                  */
-                HDINLINE float3_X operator()(const floatD_X& totalCellIdx, const float_X currentStep) const
+                HDINLINE float3_X operator()(const floatD_X& totalCellIdx) const
                 {
                     auto const fieldSI = float3_X(0.0_X, 0.0_X, 0.0_X);
                     return fieldSI / precisionCast<float_X>(m_unitField);
@@ -101,10 +109,12 @@ namespace picongpu
 
                 /** Create a functor
                  *
+                 * @param currentStep current time step index, note that it is fractional
                  * @param unitField conversion factor from SI to internal units,
                  *                  field_internal = field_SI / unitField
                  */
-                HDINLINE UserFunctorIncidentB(const float3_64 unitField) : m_unitField(unitField)
+                HDINLINE UserFunctorIncidentB(float_X const currentStep, const float3_64 unitField)
+                    : m_unitField(unitField)
                 {
                 }
 
@@ -112,10 +122,9 @@ namespace picongpu
                  *
                  * @param totalCellIdx cell index in the total domain (including all moving window slides),
                  *        note that it is fractional
-                 * @param currentStep current time step index, note that it is fractional
                  * @return incident field value in internal units
                  */
-                HDINLINE float3_X operator()(const floatD_X& totalCellIdx, const float_X currentStep) const
+                HDINLINE float3_X operator()(const floatD_X& totalCellIdx) const
                 {
                     auto const fieldSI = float3_X(0.0_X, 0.0_X, 0.0_X);
                     return fieldSI / precisionCast<float_X>(m_unitField);
@@ -125,9 +134,7 @@ namespace picongpu
             /** Make a profile with the user-provided functors defined above.
              *
              * The functors for incident field E and B must be consistent to each other.
-             * They also have to take into consideration which boundary the profile is applied to.
-             * The second template parameter may be left with the default value, then B field will be calculated
-             * from E using the slowly varying envelope approximation (SVEA).
+             * They should work for all boundaries the profile is applied to.
              */
             using MyProfile = profiles::Free<UserFunctorIncidentE, UserFunctorIncidentB>;
 
@@ -141,19 +148,29 @@ namespace picongpu
             using ZMax = profiles::None;
             /**@}*/
 
-            /** Inward offset of the Huygens surface from global domain boundaries
+            /** Position in cells of the Huygens surface relative to start of the total domain
              *
-             * The offset is in cells, counted from the corrresponding boundary inwards in the normal direction.
-             * This array is logically similar to specifying absorber thickness.
-             * The offset for the boundary must be at least absorber_thickness + (FDTD_spatial_order / 2 - 1).
-             * However beware of setting offset = absorber_thickness + const, as then changing absorber parameters
-             * may also affect laser positioning.
-             * When all used profiles are None, the check for OFFSET validity is skipped.
+             * The position is set as an offset, in cells, counted from the start of the total domain.
+             * For the max boundaries, negative position values are allowed.
+             * These negative values are treated as position at (global_domain_size[d] + POSITION[d][1]).
+             * It is also possible to specify the position explicitly as a positive number.
+             * Then it is on a user to make sure the position is correctly calculated wrt the grid size.
+             *
+             * Except moving window simulations, the position must be inside the global domain.
+             * The distance between the Huygens surface and each global domain boundary must be at least
+             * absorber_thickness + (FDTD_spatial_order / 2 - 1). However beware of setting position = direction *
+             * (absorber_thickness + const), as then changing absorber parameters will affect laser positioning. When
+             * all used profiles are None, the check for POSITION validity is skipped.
+             *
+             * For moving window simulations, POSITION for the YMax side can be located outside the initially simulated
+             * volume. In this case, parts of the generation surface outside of the currently simulated volume is are
+             * treated as if they had zero incident field and it is user's responsibility to apply a source matching
+             * such a case.
              */
-            constexpr uint32_t OFFSET[3][2] = {
-                {16, 16}, // x direction [negative, positive]
-                {16, 16}, // y direction [negative, positive]
-                {16, 16} // z direction [negative, positive]
+            constexpr int32_t POSITION[3][2] = {
+                {16, -16}, // x direction [negative, positive]
+                {16, -16}, // y direction [negative, positive]
+                {16, -16} // z direction [negative, positive]
             };
 
         } // namespace incidentField

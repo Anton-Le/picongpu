@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include "picongpu/particles/shapes.hpp"
+
 #include <pmacc/kernel/operation/Atomic.hpp>
 #include <pmacc/math/operation.hpp>
 #include <pmacc/types.hpp>
@@ -40,13 +42,24 @@ namespace picongpu
                  */
                 constexpr int validateAndAdjustWorkerMultiplier(int const multiplicator)
                 {
-#if BOOST_COMP_HIP && PIC_COMPUTE_CURRENT_THREAD_LIMITER
-                    // HIP-clang creates wrong results if more threads than particles in a frame will be used
-                    return 1;
-#else
                     return multiplicator >= 1 ? multiplicator : 1;
-#endif
                 }
+
+                struct ShapeStrategy
+                {
+                    //! Used for the outer loop (slow moving index) of the current deposition.
+                    template<typename T_AssignmentShape>
+                    using ShapeOuterLoop = shapes::Jit<T_AssignmentShape>;
+                    /** Used for the middle loop of the current deposition.
+                     *
+                     * This definition will not be used within a 2D simulation.
+                     */
+                    template<typename T_AssignmentShape>
+                    using ShapeMiddleLoop = shapes::Cached<T_AssignmentShape>;
+                    //! Used for the inner loop (fast moving index) of the current deposition.
+                    template<typename T_AssignmentShape>
+                    using ShapeInnerLoop = shapes::Cached<T_AssignmentShape>;
+                };
             } // namespace detail
 
             /** Work on strided supercell domains with local caching strategy
@@ -62,7 +75,7 @@ namespace picongpu
              *
              * @{
              */
-            struct StridedCachedSupercells
+            struct StridedCachedSupercells : detail::ShapeStrategy
             {
                 static constexpr bool useBlockCache = true;
                 static constexpr bool stridedMapping = true;
@@ -75,7 +88,7 @@ namespace picongpu
              * multiplier. Can be used to optimize the device occupancy.
              */
             template<int T_workerMultiplier>
-            struct StridedCachedSupercellsScaled
+            struct StridedCachedSupercellsScaled : detail::ShapeStrategy
             {
                 static constexpr bool useBlockCache = true;
                 static constexpr bool stridedMapping = true;
@@ -95,7 +108,7 @@ namespace picongpu
              *
              * @{
              */
-            struct CachedSupercells
+            struct CachedSupercells : detail::ShapeStrategy
             {
                 static constexpr bool useBlockCache = true;
                 static constexpr bool stridedMapping = false;
@@ -108,7 +121,7 @@ namespace picongpu
              * multiplier. Can be used to optimize the device occupancy.
              */
             template<int T_workerMultiplier>
-            struct CachedSupercellsScaled
+            struct CachedSupercellsScaled : detail::ShapeStrategy
             {
                 static constexpr bool useBlockCache = true;
                 static constexpr bool stridedMapping = false;
@@ -129,7 +142,7 @@ namespace picongpu
              *
              * @{
              */
-            struct NonCachedSupercells
+            struct NonCachedSupercells : detail::ShapeStrategy
             {
                 static constexpr bool useBlockCache = false;
                 static constexpr bool stridedMapping = false;
@@ -143,7 +156,7 @@ namespace picongpu
              * multiplier. Can be used to optimize the device occupancy.
              */
             template<int T_workerMultiplier>
-            struct NonCachedSupercellsScaled
+            struct NonCachedSupercellsScaled : detail::ShapeStrategy
             {
                 static constexpr bool useBlockCache = false;
                 static constexpr bool stridedMapping = false;
@@ -195,7 +208,7 @@ namespace picongpu
 
 #if(ALPAKA_ACC_GPU_CUDA_ENABLED == 1)
             template<typename... T_Args>
-            struct GetDefaultStrategy<alpaka::AccGpuCudaRt<T_Args...>>
+            struct GetDefaultStrategy<alpaka::AccGpuUniformCudaHipRt<alpaka::ApiCudaRt, T_Args...>>
             {
                 // GPU Utilization is higher compared to `StridedCachedSupercells`
                 using type = strategy::CachedSupercells;
@@ -204,10 +217,10 @@ namespace picongpu
 
 #if(ALPAKA_ACC_GPU_HIP_ENABLED == 1)
             template<typename... T_Args>
-            struct GetDefaultStrategy<alpaka::AccGpuHipRt<T_Args...>>
+            struct GetDefaultStrategy<alpaka::AccGpuUniformCudaHipRt<alpaka::ApiHipRt, T_Args...>>
             {
                 // GPU Utilization is higher compared to `StridedCachedSupercells`
-                using type = strategy::CachedSupercells;
+                using type = strategy::CachedSupercellsScaled<2>;
             };
 #endif
 

@@ -43,7 +43,10 @@ namespace pmacc
     public:
         using DataBoxType = typename DeviceBuffer<TYPE, DIM>::DataBoxType;
 
-        /*! create device buffer
+        /** Create device buffer
+         *
+         * Allocate new memory on the device.
+         *
          * @param size extent for each dimension (in elements)
          * @param sizeOnDevice memory with the current size of the grid is stored on device
          * @param useVectorAsBase use a vector as base of the array (is not lined pitched)
@@ -71,6 +74,15 @@ namespace pmacc
             }
         }
 
+        /** Create a shallow copy of the given source buffer
+         *
+         * The resulting buffer is effectively a subview to the source buffer.
+         *
+         * @param source source device buffer
+         * @param size extent for each dimension (in elements)
+         * @param offset extra offset in the source buffer
+         * @param sizeOnDevice memory with the current size of the grid is stored on device
+         */
         DeviceBufferIntern(
             DeviceBuffer<TYPE, DIM>& source,
             DataSpace<DIM> size,
@@ -126,20 +138,19 @@ namespace pmacc
         {
             __startOperation(ITask::TASK_DEVICE);
 
-            if(DIM == DIM1)
+            if constexpr(DIM == DIM1)
             {
                 return (TYPE*) (data.ptr) + this->offset[0];
             }
-            else if(DIM == DIM2)
+            else if constexpr(DIM == DIM2)
             {
                 return (TYPE*) ((char*) data.ptr + this->offset[1] * this->data.pitch) + this->offset[0];
             }
-            else
-            {
-                const size_t offsetY = this->offset[1] * this->data.pitch;
-                const size_t sizePlaneXY = this->getPhysicalMemorySize()[1] * this->data.pitch;
-                return (TYPE*) ((char*) data.ptr + this->offset[2] * sizePlaneXY + offsetY) + this->offset[0];
-            }
+
+            // path for the highest supported dimension DIM3
+            const size_t offsetY = this->offset[1] * this->data.pitch;
+            const size_t sizePlaneXY = this->getPhysicalMemorySize()[1] * this->data.pitch;
+            return (TYPE*) ((char*) data.ptr + this->offset[2] * sizePlaneXY + offsetY) + this->offset[0];
         }
 
         DataSpace<DIM> getOffset() const override
@@ -238,18 +249,18 @@ namespace pmacc
             data.xsize = this->getDataSpace()[0] * sizeof(TYPE);
             data.ysize = 1;
 
-            if(DIM == DIM1)
+            if constexpr(DIM == DIM1)
             {
                 log<ggLog::MEMORY>("Create device 1D data: %1% MiB") % (data.xsize / 1024 / 1024);
                 CUDA_CHECK(cuplaMallocPitch(&data.ptr, &data.pitch, data.xsize, 1));
             }
-            if(DIM == DIM2)
+            if constexpr(DIM == DIM2)
             {
                 data.ysize = this->getDataSpace()[1];
                 log<ggLog::MEMORY>("Create device 2D data: %1% MiB") % (data.xsize * data.ysize / 1024 / 1024);
                 CUDA_CHECK(cuplaMallocPitch(&data.ptr, &data.pitch, data.xsize, data.ysize));
             }
-            if(DIM == DIM3)
+            if constexpr(DIM == DIM3)
             {
                 cuplaExtent extent;
                 extent.width = this->getDataSpace()[0] * sizeof(TYPE);
@@ -285,7 +296,7 @@ namespace pmacc
             // fake the pitch, thus we can use this 1D Buffer as 2D or 3D
             data.pitch = this->getDataSpace()[0] * sizeof(TYPE);
 
-            if(DIM > DIM1)
+            if constexpr(DIM > DIM1)
             {
                 data.ysize = this->getDataSpace()[1];
             }
@@ -325,10 +336,8 @@ namespace pmacc
     template<class TYPE, unsigned DIM>
     HINLINE std::unique_ptr<DeviceBufferIntern<TYPE, DIM>> makeDeepCopy(DeviceBuffer<TYPE, DIM>& source)
     {
-        auto result = std::make_unique<DeviceBufferIntern<TYPE, DIM>>(
-            source,
-            source.getDataSpace(),
-            DataSpace<DIM>::create(0));
+        // We have to call this constructor to allocate a new data storage and not shallow-copy the source
+        auto result = std::make_unique<DeviceBufferIntern<TYPE, DIM>>(source.getDataSpace());
         result->copyFrom(source);
         // Wait for copy to finish, so that the resulting object is safe to use after return
         __getTransactionEvent().waitForFinished();

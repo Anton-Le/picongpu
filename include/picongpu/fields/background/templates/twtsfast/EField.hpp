@@ -1,4 +1,4 @@
-/* Copyright 2014-2022 Alexander Debus, Axel Huebl
+/* Copyright 2014-2022 Alexander Debus, Axel Huebl, Sergei Bastrakov
  *
  * This file is part of PIConGPU.
  *
@@ -126,11 +126,46 @@ namespace picongpu
 
                 /** Specify your background field E(r,t) here
                  *
-                 * @param cellIdx The total cell id counted from the start at timestep 0.
-                 * @param currentStep The current time step
+                 * @param cellIdx The total cell id counted from the start at t=0, note it can be fractional
+                 * @param currentStep The current time step for the field to be calculated at, note it can be
+                 * fractional
                  * @return float3_X with field normalized to amplitude in range [-1.:1.]
+                 *
+                 * @{
                  */
+
+                //! Integer index version, adds in-cell shifts according to the grid used; t = currentStep * dt
                 HDINLINE float3_X operator()(DataSpace<simDim> const& cellIdx, uint32_t const currentStep) const;
+
+                //! Floating-point index version, uses fractional cell index as provided; t = currentStep * dt
+                HDINLINE float3_X operator()(floatD_X const& cellIdx, float_X const currentStep) const;
+
+                /** @} */
+
+                /** Calculate the given component of E(r, t)
+                 *
+                 * Result is same as for the fractional version of operator()(cellIdx, currentStep)[T_component].
+                 * This version exists for optimizing usage in incident field where single components are needed.
+                 *
+                 * @tparam T_component field component, 0 = x, 1 = y, 2 = z
+                 *
+                 * @param cellIdx The total fractional cell id counted from the start at t=0
+                 * @param currentStep The current time step for the field to be calculated at
+                 * @return float_X with field component normalized to amplitude in range [-1.:1.]
+                 */
+                template<uint32_t T_component>
+                HDINLINE float_X getComponent(floatD_X const& cellIdx, float_X const currentStep) const;
+
+                /** Calculate E(r, t) for given position, time, and extra in-cell shifts
+                 *
+                 * @param cellIdx The total cell id counted from the start at t=0, note it is fractional
+                 * @param extraShifts The extra in-cell shifts to be added to calculate the position
+                 * @param currentStep The current time step for the field to be calculated at, note it is fractional
+                 */
+                HDINLINE float3_X getValue(
+                    floatD_X const& cellIdx,
+                    pmacc::math::Vector<floatD_X, detail::numComponents> const& extraShifts,
+                    float_X const currentStep) const;
 
                 /** Calculate the Ex(r,t) field here (electric field vector normal to pulse-front-tilt plane)
                  *
