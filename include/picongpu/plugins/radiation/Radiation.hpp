@@ -1015,7 +1015,8 @@ namespace picongpu
                     const SubGrid<simDim>& subGrid = Environment<simDim>::get().SubGrid();
                     DataSpace<simDim> globalOffset(subGrid.getLocalDomain().offset);
                     globalOffset.y() += (localSize.y() * numSlides);
-
+                    //Fetch the window to get the offset
+                    DataSpace<simDim> windowOffset(MovingWindow::getInstance().getWindow(currentStep).globalDimensions.offset);
                     constexpr uint32_t numWorkers
                         = pmacc::traits::GetNumWorkers<pmacc::math::CT::volume<SuperCellSize>::type::value>::value;
 
@@ -1029,6 +1030,7 @@ namespace picongpu
                         /*Pointer to memory of radiated amplitude on the device*/
                         radiation->getDeviceBuffer().getDataBox(),
                         globalOffset,
+                        windowOffset,
                         currentStep,
                         *cellDescription,
                         freqFkt,

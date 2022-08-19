@@ -99,6 +99,7 @@ namespace picongpu
                         ParBox pb,
                         DBox radiation,
                         DataSpace<simDim> globalOffset,
+                        DataSpace<simDim> windowOffset,
                         uint32_t currentStep,
                         Mapping mapper,
                         radiation_frequencies::FreqFunctor freqFkt,
@@ -344,7 +345,7 @@ namespace picongpu
                                                 for(uint32_t d = 0; d < simDim; ++d)
                                                 {
                                                     windowFactor *= winFkt(
-                                                        particle_locationNow[d] - globalOffset[d] * cellSize[d],
+                                                        particle_locationNow[d] - windowOffset[d] * cellSize[d],
                                                         simBoxSize[d] * cellSize[d]);
                                                 }
 
